@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(conda run:*)",
+      "Bash(npm run*)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(cat*)",
+      "Bash(ls*)",
+      "Read(//home/william/**)",
+      "Bash(git mv:*)"
+    ]
+  }
+}
