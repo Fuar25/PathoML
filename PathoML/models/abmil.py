@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..optimization.interfaces import Aggregator, BaseMIL, Classifier, DataDict
-from ..optimization.registry import register_model
+from ..interfaces import Aggregator, BaseMIL, Classifier, DataDict
+from ..registry import register_model
 
 
 class FeatureEncoder(nn.Module):

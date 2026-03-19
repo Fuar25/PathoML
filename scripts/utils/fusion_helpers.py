@@ -17,7 +17,7 @@ import torch
 
 # 项目内部模块
 from PathoML.config.config import runtime_config
-from PathoML.optimization.registry import create_dataset, create_model, load_runtime_plugins
+from PathoML.optimization.registry import create_dataset, create_model, load_all_module
 from PathoML.optimization.trainer import Trainer
 
 # ANSI color helpers for terminal clarity
@@ -37,7 +37,7 @@ def build_dataset():
     Returns:
         构建好的数据集对象（BaseDataset 子类实例）。
     """
-    load_runtime_plugins(runtime_config)
+    load_all_module(runtime_config)
     dataset_cfg = runtime_config.dataset
     dataset_kwargs = dict(dataset_cfg.dataset_kwargs)
     dataset_kwargs.setdefault("patient_id_pattern", dataset_cfg.patient_id_pattern)
@@ -58,7 +58,7 @@ def build_model_builder():
     Returns:
         可调用对象，每次调用返回一个新初始化的模型实例。
     """
-    load_runtime_plugins(runtime_config)
+    load_all_module(runtime_config)
     model_cfg = runtime_config.model
 
     def _builder():

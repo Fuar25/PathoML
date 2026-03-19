@@ -115,11 +115,47 @@ def create_dataset(key: str, **kwargs: Any) -> Any:
   return dataset_registry.create(key, **kwargs)
 
 
+def create_dataset_from_config(cfg: Any) -> Any:
+  """Instantiate a dataset directly from a DatasetConfig.
+
+  Merges top-level config fields into dataset_kwargs before construction:
+  patient_id_pattern defaults to cfg.patient_id_pattern unless already in dataset_kwargs.
+
+  Args:
+      cfg: DatasetConfig instance.
+  Returns:
+      Instantiated dataset.
+  """
+  kwargs = dict(cfg.dataset_kwargs)
+  kwargs.setdefault('patient_id_pattern', cfg.patient_id_pattern)
+  return create_dataset(cfg.dataset_name, **kwargs)
+
+
+def model_builder_from_config(cfg: Any, dataset: Any) -> Callable[[], Any]:
+  """Return a model factory closure with input_dim and num_classes inferred from dataset.
+
+  Inference runs once at call time; the returned callable can be invoked
+  repeatedly (e.g. per fold in CrossValidator) to get freshly initialised models.
+  Values in cfg.model_kwargs override inferred ones if needed.
+
+  Args:
+      cfg: ModelConfig instance.
+      dataset: An instantiated dataset with .classes and __getitem__ returning
+               a dict with 'features' key.
+  Returns:
+      A zero-argument callable that creates and returns a new model instance.
+  """
+  input_dim = int(dataset[0]['features'].shape[-1])
+  n_classes = len(dataset.classes)
+  num_classes = 1 if n_classes == 2 else n_classes
+  kwargs = {'input_dim': input_dim, 'num_classes': num_classes, **cfg.model_kwargs}
+  return lambda: create_model(cfg.model_name, **kwargs)
+
+
 # Built-in modules auto-loaded on every run. Add new built-ins here.
 _BUILTIN_DATASET_MODULES = [
-  'PathoML.data.unimodal_dataset',
-  'PathoML.data.multimodal_dataset_concat',
-  'PathoML.data.multimodal_dataset_add',
+  'PathoML.dataset.SlideDataset',
+  'PathoML.dataset.PatchDataset',
 ]
 _BUILTIN_MODEL_MODULES = [
   'PathoML.models.abmil',
@@ -127,7 +163,7 @@ _BUILTIN_MODEL_MODULES = [
 ]
 
 
-def load_runtime_plugins(config: Any) -> None:
+def load_all_module(config: Any) -> None:
   """Import built-in modules and any user-specified extension modules.
 
   Built-ins are always loaded. User extensions are appended via

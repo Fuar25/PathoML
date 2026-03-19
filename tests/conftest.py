@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import torch
 
-from PathoML.optimization.registry import Registry
-from PathoML.optimization.interfaces import BaseDataset
+from PathoML.registry import Registry
+from PathoML.interfaces import BaseDataset
 
 
 @pytest.fixture
@@ -91,8 +91,5 @@ def trainer_config(tmp_path):
   config.training.batch_size = 1
   config.training.learning_rate = 1e-3
   config.training.seed = 42
-  config.model.num_classes = 1
-  config.model.input_dim = 32
-  config.model.hidden_dim = 16
   config.logging.save_dir = str(tmp_path)
   return config

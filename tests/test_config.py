@@ -18,12 +18,11 @@ def test_field_assignment():
   assert config.training.epochs == 50
 
 
-def test_nested_defaults():
+def test_model_config_defaults():
   m = ModelConfig()
-  assert m.input_dim == 1536
-  assert m.num_classes == 1
-  assert m.hidden_dim == 512
-  assert m.dropout == 0.2
+  assert m.model_name == "abmil"
+  assert m.model_kwargs == {}
+  assert m.model_module_paths == []
 
 
 def test_model_kwargs_empty_by_default():

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from .defaults import (
   DEFAULT_DATASET_NAME,
@@ -16,24 +16,20 @@ class DatasetConfig:
   dataset_module_paths: List[str] = field(default_factory=list)
   dataset_kwargs: Dict[str, object] = field(default_factory=dict)
   patient_id_pattern: str = PATIENT_ID_PATTERN
-  binary_mode: Optional[bool] = None
+  # binary_mode: auto-inferred by dataset (len(classes) == 2); not a config concern
 
 
 @dataclass
 class ModelConfig:
-  """Model architecture configuration parameters.
+  """Model configuration parameters.
 
-  model_kwargs: model-specific parameters (e.g. gated, n_heads, attention_dim).
-  These are passed directly to the model constructor and filtered by its signature.
+  model_kwargs: all model-specific parameters (e.g. hidden_dim, dropout, gated).
+  input_dim and num_classes are inferred at runtime from the dataset.
   """
 
   model_name: str = DEFAULT_MODEL_NAME
   model_module_paths: List[str] = field(default_factory=list)
   model_kwargs: Dict[str, object] = field(default_factory=dict)
-  input_dim: int = 1536
-  hidden_dim: int = 512
-  num_classes: int = 1
-  dropout: float = 0.2
 
 
 @dataclass

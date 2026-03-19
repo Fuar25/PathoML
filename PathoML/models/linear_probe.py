@@ -5,8 +5,8 @@ from typing import Dict
 import torch
 import torch.nn as nn
 
-from ..optimization.interfaces import BaseModel, DataDict
-from ..optimization.registry import register_model
+from ..interfaces import BaseModel, DataDict
+from ..registry import register_model
 
 
 @register_model('linear_probe')

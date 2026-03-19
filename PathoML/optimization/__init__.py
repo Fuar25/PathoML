@@ -1,13 +1,13 @@
 """Optimization package: training strategies, registry, and base interfaces."""
 
-from .interfaces import BaseDataset, BaseModel, BaseMIL, Aggregator, Classifier
+from PathoML.interfaces import BaseDataset, BaseModel, BaseMIL, Aggregator, Classifier
 from .patient_aggregation import aggregate_patient_predictions
-from .registry import (
+from PathoML.registry import (
   register_model,
   register_dataset,
   create_model,
   create_dataset,
-  load_runtime_plugins,
+  load_all_module,
 )
 
 __all__ = [
@@ -21,5 +21,5 @@ __all__ = [
   'register_dataset',
   'create_model',
   'create_dataset',
-  'load_runtime_plugins',
+  'load_all_module',
 ]

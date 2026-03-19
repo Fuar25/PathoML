@@ -2,7 +2,7 @@
 
 import pytest
 
-from PathoML.optimization.registry import Registry
+from PathoML.registry import Registry
 
 
 def test_register_and_create(fresh_registry):

@@ -16,11 +16,11 @@ config = RunTimeConfig()
 # =========================================================================
 
 # Data paths — one directory per class, containing .h5 files
-config.dataset.dataset_name = "wsi_h5"
-config.dataset.dataset_kwargs["data_paths"] = {
-  "positive": "/path/to/positive_h5",   # e.g. MALT H5 files
-  "negative": "/path/to/negative_h5",   # e.g. Reactive H5 files
-}
+config.dataset.dataset_name = "UnimodalPatchDataset"
+config.dataset.dataset_kwargs["data_path"] = "/path/to/data_root"
+# /path/to/data_root must contain one subdirectory per class, e.g.:
+#   /path/to/data_root/MALT/*.h5
+#   /path/to/data_root/Reactive/*.h5
 
 # Model
 config.model.model_name = "abmil"       # or "linear_probe"

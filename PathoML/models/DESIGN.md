@@ -18,6 +18,7 @@ All models must:
 |-------|-------------|-------------|
 | `ABMIL` | `abmil` | Gated attention MIL (Ilse et al. 2018). Pipeline: FeatureEncoder → GatedAttention → LinearClassifier |
 | `LinearProbe` | `linear_probe` | Mean-pool baseline; single linear layer over bag features |
+| `MLP` | `mlp` | Single hidden-layer MLP with GELU activation and Dropout |
 
 ### ABMIL model-specific kwargs (via `ModelConfig.model_kwargs`)
 - `gated: bool = True` — enable gated attention (sigmoid branch)
