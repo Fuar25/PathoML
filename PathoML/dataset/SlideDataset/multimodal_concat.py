@@ -14,12 +14,12 @@ class MultimodalConcatSlideDataset(_MultimodalSlideBase):
   """Slide-level multimodal concat dataset.
 
   Concatenates modality feature vectors along the channel dimension:
-      (1, D_1), (1, D_2) → (1, D_1 + D_2)
+      (1, D_1), ..., (1, D_n) → (1, D_1 + ... + D_n)
 
   Usage:
       dataset = MultimodalConcatSlideDataset(
-          modality_paths={'HE': '/data/HE', 'CD20': '/data/CD20'},
-          modality_names=['HE', 'CD20'],
+          modality_paths={'HE': '/data/HE', 'CD20': '/data/CD20', 'CD3': '/data/CD3'},
+          modality_names=['HE', 'CD20', 'CD3'],
       )
   """
 

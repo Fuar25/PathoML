@@ -88,11 +88,19 @@ class CrossValidator(Strategy, TrainingMixin):
     for fold, (train_val_ids, test_ids) in enumerate(split_iter):
       print(f"\n{'='*70}\nFold {fold+1} / {self.k_folds}\n{'='*70}")
 
+      # (1) Embed fold split metadata into checkpoint for downstream verification
+      fold_meta = {
+        'fold':       fold + 1,
+        'train_fold': sorted(set(patient_ids[train_val_ids].tolist())),  # includes val
+        'test_fold':  sorted(set(patient_ids[test_ids].tolist())),
+      }
+
       result, test_details = self._train_single_fold(
         fold=fold + 1,
         train_val_ids=train_val_ids,
         test_ids=test_ids,
         patient_ids=patient_ids,
+        fold_meta=fold_meta,
       )
       fold_results.append(result)
       all_test_details.append(test_details)
@@ -132,14 +140,17 @@ class CrossValidator(Strategy, TrainingMixin):
     train_val_ids: np.ndarray,
     test_ids: np.ndarray,
     patient_ids: np.ndarray,
+    fold_meta: Optional[Dict[str, Any]] = None,
   ) -> Tuple['FoldResult', Dict[str, Any]]:
     """Full pipeline for one fold: split → build loaders → train → evaluate.
 
     Returns (FoldResult, test_details_dict).
     """
-    # (1) Patient-aware train/val split
+    # (1) Fix RNG + patient-aware train/val split (both use seed + fold)
+    fold_seed = self.training_cfg.seed + fold
+    self._set_seed(fold_seed)
     train_ids, val_ids = self._split_train_val(
-      train_val_ids, patient_ids[train_val_ids], seed=self.training_cfg.seed + fold
+      train_val_ids, patient_ids[train_val_ids], seed=fold_seed
     )
 
     # (2) Build DataLoaders
@@ -162,6 +173,13 @@ class CrossValidator(Strategy, TrainingMixin):
 
     # (6) Restore best weights and evaluate on test set
     early_stopping.load_best()
+
+    # (6.1) Inject fold metadata into checkpoint for downstream CV verification
+    if fold_meta is not None:
+      state_dict = torch.load(ckpt_path, weights_only=True)
+      torch.save({'state_dict': state_dict, **fold_meta}, ckpt_path)
+      print(f"  Fold metadata saved to checkpoint: {ckpt_path}")
+
     test_loss, test_acc, test_auc, test_details = self._evaluate_with_auc(
       model, test_loader, criterion
     )

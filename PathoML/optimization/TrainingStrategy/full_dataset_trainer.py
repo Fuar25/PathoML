@@ -67,7 +67,8 @@ class FullDatasetTrainer(Strategy, TrainingMixin):
     """Train on full dataset with early stopping and save best checkpoint."""
     os.makedirs(self.logging_cfg.save_dir, exist_ok=True)
 
-    # (1) Patient-aware 9:1 train/val split
+    # (1) Fix RNG + patient-aware 9:1 train/val split
+    self._set_seed(self.training_cfg.seed)
     all_ids = np.arange(len(self.dataset))
     patient_ids = np.array(self.dataset.get_patient_ids())
     train_ids, val_ids = self._split_train_val(all_ids, patient_ids, self.training_cfg.seed)

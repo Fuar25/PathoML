@@ -49,6 +49,7 @@ class _UnimodalSlideBase(BaseDataset):
     self.samples: List[Dict[str, Any]] = []
     self._scan_files()
 
+    self.samples.sort(key=lambda x: (x['patient_id'], x['tissue_id']))
     print(f"{self.__class__.__name__} loaded: {len(self.samples)} samples, classes={self.classes}")
 
   def _detect_classes(self) -> List[str]:
@@ -75,7 +76,7 @@ class _UnimodalSlideBase(BaseDataset):
             continue
           patient_id, tissue_id = key
           self.samples.append({
-            'slide_id':      filename.replace('.h5', ''),
+            'sample_id':     filename.replace('.h5', ''),
             'patient_id':    patient_id,
             'tissue_id':     tissue_id,
             '_feature_path': os.path.join(root, filename),
@@ -107,7 +108,7 @@ class _UnimodalSlideBase(BaseDataset):
       'features':   features,
       'coords':     coords,
       'label':      label_tensor,
-      'slide_id':   item['slide_id'],
+      'sample_id':  item['sample_id'],
       'patient_id': item['patient_id'],
       'tissue_id':  item['tissue_id'],
     }

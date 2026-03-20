@@ -51,6 +51,12 @@ class TrainingMixin:
   # -- Build helpers --
 
   @staticmethod
+  def _set_seed(seed: int) -> None:
+    """Fix torch and CUDA RNG for reproducible weight init and dropout."""
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+  @staticmethod
   def _build_criterion(num_classes: int) -> nn.Module:
     return nn.BCEWithLogitsLoss() if num_classes == 1 else nn.CrossEntropyLoss()
 
