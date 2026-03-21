@@ -24,7 +24,7 @@ Trainer
 TrainingMixin     — shared epoch/eval logic + batch helpers  [training_base.py]
 FoldTrainer       — runs one fold to convergence (composition, not inheritance)
 FoldResult        — fold-specific result container
-EarlyStopping     — patience-based stop signal
+EarlyStopping     — patience-based stop signal (monitors val_auc, higher is better)
 CheckpointManager — save/load best checkpoint per fold
 ```
 
@@ -52,7 +52,8 @@ result: TrainingResult = Trainer(strategy).fit()
 | `_train_epoch(model, loader, criterion, optimizer)` | Returns (avg_loss, accuracy) |
 | `_evaluate_with_auc(model, loader, criterion)` | Returns (loss, acc, auc, details) always |
 | `_forward_and_decode(logits, labels, criterion)` | Handles binary and multi-class; threshold from `self.training_cfg.patient_threshold` |
-| `_compute_auc(labels, probs)` | Handles both AUC types; returns 0.0 on failure |
+| `_compute_patient_metrics(eval_details)` | Returns (patient_acc, patient_auc, patient_f1) |
+| `_compute_auc(labels, probs)` | Handles both AUC types; returns nan on failure |
 | `_build_criterion(num_classes)` | BCE for binary, CrossEntropy for multi-class |
 | `_move_to_device(batch)` | Moves tensor values to `self.device`; override for custom layouts |
 | `_model_inputs(batch)` | Strips label/ID/path keys; override for custom layouts |
@@ -69,7 +70,7 @@ ckpt = fold_trainer.fit(train_loader, val_loader, fold,
 ```
 
 ## 7. Patient Metrics and CV Predictions
-`CrossValidator._compute_patient_metrics(test_details)` aggregates tissue-level results to patient level at runtime using `aggregate_patient_predictions()`. No CSV is written per-fold.
+`TrainingMixin._compute_patient_metrics(test_details)` aggregates tissue-level results to patient level at runtime using `aggregate_patient_predictions()`, returning `(patient_acc, patient_auc, patient_f1)`. No CSV is written per-fold.
 
 After all folds complete, `_save_cv_predictions(all_test_details)` concatenates all test-fold predictions and saves `{save_dir}/cv_predictions.csv` with columns:
 - `slide_id`, `patient_id`, `slide_label`, `slide_prob`, `slide_pred`
@@ -83,6 +84,7 @@ After all folds complete, `_save_cv_predictions(all_test_details)` concatenates 
 - `_move_to_device` and `_model_inputs` live in `TrainingMixin`; override in subclass for non-standard batch layouts.
 - Binary threshold is `self.training_cfg.patient_threshold`; no hardcoded class variable.
 - `FoldResult` and `FoldTrainer` live in `cross_validator.py` (fold-specific concepts).
+- Early stopping monitors `val_auc` (higher is better), not `val_loss`.
 
 ## TODO
 1. Interpretability hooks: post-fold callback so `TrainingResult` consumers can trigger CSV/figure output without modifying trainer.

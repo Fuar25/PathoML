@@ -6,6 +6,7 @@ Standard, structrued scripts for running experiments based on the core library. 
 ## 2. Rules
 - Every run follows the same structure, which is `make_config` first, `run_condition` then and `log_results` last. This is to ensure the consistency of the code.
 - The name of the script should follow the same pattern, which is `run_{dataset_class}_{modal_name}_{model_class}.py`. For example, `run_concat_HE_CD20_mlp.py`, which means the dataset is `ConcatDataset`, the modal is `HE+CD20` and the model is `MLP`. User may not point out the experiment name explicitly, but the name should be inferred and follow the pattern.
+- If user does not imply some experiment hyperparameters, you should ask them first to get all set, rather than first implementing.
 - The condition name which is presented by `CONDITION_NAME` should be the same as the name of the script.
 
 ## 3. Cross-experiment Comparability

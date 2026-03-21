@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 
 
 def test_dataset_len_and_item_shapes(synthetic_dataset):
-  assert len(synthetic_dataset) == 12
+  assert len(synthetic_dataset) == 40
 
   item = synthetic_dataset[0]
   assert item['features'].shape == (5, 32)

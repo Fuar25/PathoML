@@ -17,11 +17,11 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
-from ..training_utils import EarlyStopping, TrainingResult
+from ..training_utils import EarlyStopping, TrainingResult, stratified_patient_split
 from ..patient_aggregation import aggregate_patient_predictions
 
 
@@ -90,18 +90,15 @@ class TrainingMixin:
   def _split_train_val(
     self, indices: np.ndarray, patient_ids: np.ndarray, seed: int
   ) -> Tuple[np.ndarray, np.ndarray]:
-    """Patient-aware 9:1 train/val split.
+    """Patient-level stratified 9:1 train/val split.
 
-    Shuffles unique patients with the given seed, reserves the first 10% as val,
-    then maps back to sample indices. Returns (train_ids, val_ids).
+    Stratifies on patient labels so val contains both classes.
+    Uses stratified_patient_split with n_splits=10, takes first fold as val.
     """
-    rng = np.random.default_rng(seed)
-    unique_patients = np.unique(patient_ids)
-    rng.shuffle(unique_patients)
-    n_val = max(1, int(len(unique_patients) * 0.1))
-    val_patients = set(unique_patients[:n_val])
-    val_mask = np.isin(patient_ids, list(val_patients))
-    return indices[~val_mask], indices[val_mask]
+    all_labels = np.array(self.dataset.get_labels())
+    labels = all_labels[indices]
+    splits = stratified_patient_split(indices, patient_ids, labels, n_splits=10, seed=seed)
+    return splits[0]
 
   # -- Training loop --
 
@@ -122,7 +119,7 @@ class TrainingMixin:
         train_loss, _ = self._train_epoch(model, train_loader, criterion, optimizer)
         val_loss, val_acc, val_auc, _ = self._evaluate_with_auc(model, val_loader, criterion)
 
-        should_stop = early_stopping.step(val_loss, epoch + 1)
+        should_stop = early_stopping.step(val_auc, epoch + 1)
 
         elapsed = time.time() - start
         eta = elapsed / (epoch + 1) * (self.training_cfg.epochs - epoch - 1)
@@ -253,8 +250,8 @@ class TrainingMixin:
 
   def _compute_patient_metrics(
     self, eval_details: Dict[str, Any]
-  ) -> Tuple[float, float]:
-    """Compute patient-level accuracy and AUC from in-memory eval predictions."""
+  ) -> Tuple[float, float, float]:
+    """Compute patient-level accuracy, AUC, and F1 from in-memory eval predictions."""
     _, patient_results = aggregate_patient_predictions(
       sample_ids=eval_details['sample_ids'],
       patient_ids=eval_details['patient_ids'],
@@ -275,7 +272,15 @@ class TrainingMixin:
       p_probs = patient_results[prob_cols].values
     patient_auc = self._compute_auc(p_labels, p_probs)
 
-    return patient_acc, patient_auc
+    # (1) Patient-level F1
+    try:
+      avg = 'binary' if self.num_classes == 1 else 'macro'
+      patient_f1 = float(f1_score(p_labels.astype(int), p_preds.astype(int), average=avg))
+    except Exception as e:
+      print(f"Warning: F1 computation failed: {e}")
+      patient_f1 = float('nan')
+
+    return patient_acc, patient_auc, patient_f1
 
 
 # ---------------------------------------------------------------------------

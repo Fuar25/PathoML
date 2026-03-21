@@ -27,6 +27,7 @@ class FullTrainingResult:
   val_auc: float
   patient_acc: float
   patient_auc: float
+  patient_f1: float
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +94,7 @@ class FullDatasetTrainer(Strategy, TrainingMixin):
     # (5) Restore best weights, evaluate val set, compute patient metrics
     early_stopping.load_best()
     val_loss, val_acc, val_auc, val_details = self._evaluate_with_auc(model, val_loader, criterion)
-    patient_acc, patient_auc = self._compute_patient_metrics(val_details)
+    patient_acc, patient_auc, patient_f1 = self._compute_patient_metrics(val_details)
 
     # (6) Save deployment model and print summary
     deploy_path = os.path.join(self.logging_cfg.save_dir, 'model_deployment.pth')
@@ -106,6 +107,7 @@ class FullDatasetTrainer(Strategy, TrainingMixin):
       val_auc=val_auc,
       patient_acc=patient_acc,
       patient_auc=patient_auc,
+      patient_f1=patient_f1,
     )
     self._print_training_summary(result, deploy_path)
     return TrainingResult(
@@ -124,5 +126,6 @@ class FullDatasetTrainer(Strategy, TrainingMixin):
     print(f"  Val AUC:       {result.val_auc:.4f}")
     print(f"  Patient Acc:   {result.patient_acc:.4f}")
     print(f"  Patient AUC:   {result.patient_auc:.4f}")
+    print(f"  Patient F1:    {result.patient_f1:.4f}")
     print(f"  Model saved -> {deploy_path}")
     print(f"{'='*70}")

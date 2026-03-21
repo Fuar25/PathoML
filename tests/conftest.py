@@ -36,13 +36,13 @@ def synthetic_abmil_data():
 def synthetic_dataset():
   """In-memory dataset satisfying the full BaseDataset contract.
 
-  Layout: 12 samples, 6 patients (2 samples each), binary labels.
-  3 negative patients (P0-P2) + 3 positive patients (P3-P5).
-  Sufficient for StratifiedGroupKFold(k=2).
+  Layout: 40 samples, 20 patients (2 samples each), binary labels.
+  10 negative patients (P0-P9) + 10 positive patients (P10-P19).
+  Sufficient for stratified patient-level K-fold and train/val splits.
   """
   class SyntheticDataset(BaseDataset):
     def __init__(self):
-      n_patients, samples_per = 6, 2
+      n_patients, samples_per = 20, 2
       self.n_instances = 5
       self.n_features = 32
       self._patient_ids = [
@@ -69,6 +69,9 @@ def synthetic_dataset():
 
     def get_patient_ids(self):
       return self._patient_ids
+
+    def get_labels(self):
+      return list(self._labels)
 
   return SyntheticDataset()
 

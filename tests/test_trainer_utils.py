@@ -17,44 +17,44 @@ from PathoML.optimization.trainer import EarlyStopping
 def test_early_stopping_improves(tmp_path):
   model = nn.Linear(4, 2)
   es = EarlyStopping(patience=3, model=model, ckpt_path=str(tmp_path / "ckpt.pt"))
-  assert es.step(1.0, 1) == False  # first: always improvement
-  assert es.step(0.8, 2) == False  # still improving
+  assert es.step(0.5, 1) == False  # first: always improvement (> -inf)
+  assert es.step(0.7, 2) == False  # still improving (higher AUC)
 
 
 def test_early_stopping_patience_exhausted(tmp_path):
   model = nn.Linear(4, 2)
   es = EarlyStopping(patience=3, model=model, ckpt_path=str(tmp_path / "ckpt.pt"))
-  es.step(1.0, 1)   # best = 1.0
-  es.step(1.1, 2)   # counter = 1
-  es.step(1.2, 3)   # counter = 2
-  assert es.step(1.3, 4) == True  # counter = 3 >= patience → stop
+  es.step(0.9, 1)   # best = 0.9
+  es.step(0.8, 2)   # counter = 1 (worse)
+  es.step(0.7, 3)   # counter = 2
+  assert es.step(0.6, 4) == True  # counter = 3 >= patience → stop
 
 
 def test_early_stopping_does_not_stop_early(tmp_path):
   model = nn.Linear(4, 2)
   es = EarlyStopping(patience=3, model=model, ckpt_path=str(tmp_path / "ckpt.pt"))
-  es.step(1.0, 1)
-  es.step(1.1, 2)
+  es.step(0.9, 1)
+  es.step(0.8, 2)   # counter = 1
   # counter = 2, not yet at patience=3
-  assert es.step(1.2, 3) == False
+  assert es.step(0.7, 3) == False
 
 
 def test_early_stopping_best_epoch_tracked(tmp_path):
   model = nn.Linear(4, 2)
   es = EarlyStopping(patience=5, model=model, ckpt_path=str(tmp_path / "ckpt.pt"))
-  es.step(1.0, 1)
-  es.step(0.8, 2)   # new best at epoch 2
-  es.step(0.9, 3)   # no improvement
+  es.step(0.5, 1)
+  es.step(0.8, 2)   # new best at epoch 2 (higher AUC)
+  es.step(0.7, 3)   # no improvement
   assert es.best_epoch == 2
 
 
 def test_early_stopping_reset(tmp_path):
   model = nn.Linear(4, 2)
   es = EarlyStopping(patience=3, model=model, ckpt_path=str(tmp_path / "ckpt.pt"))
-  es.step(1.0, 1)
-  es.step(1.1, 2)
+  es.step(0.8, 1)
+  es.step(0.7, 2)
   es.reset()
-  assert es.best_val_loss == float('inf')
+  assert es.best_val_auc == float('-inf')
   assert es.patience_counter == 0
   assert es.best_epoch == 0
 
@@ -67,7 +67,7 @@ def test_early_stopping_saves_checkpoint_on_improvement(tmp_path):
   model = nn.Linear(4, 2)
   ckpt_path = str(tmp_path / "best.pt")
   es = EarlyStopping(patience=3, model=model, ckpt_path=ckpt_path)
-  es.step(1.0, 1)
+  es.step(0.8, 1)   # improvement (> -inf), should save
   assert os.path.exists(ckpt_path)
 
 
@@ -75,10 +75,10 @@ def test_early_stopping_does_not_save_on_no_improvement(tmp_path):
   model = nn.Linear(4, 2)
   ckpt_path = str(tmp_path / "best.pt")
   es = EarlyStopping(patience=3, model=model, ckpt_path=ckpt_path)
-  es.step(1.0, 1)   # saves
+  es.step(0.8, 1)   # saves
   mtime_after_first = os.path.getmtime(ckpt_path)
   import time; time.sleep(0.05)
-  es.step(1.5, 2)   # no improvement — should NOT overwrite
+  es.step(0.5, 2)   # no improvement (lower AUC) — should NOT overwrite
   assert os.path.getmtime(ckpt_path) == mtime_after_first
 
 
@@ -88,7 +88,7 @@ def test_early_stopping_load_best_restores_weights(tmp_path):
   ckpt_path = str(tmp_path / "best.pt")
 
   es = EarlyStopping(patience=3, model=model, ckpt_path=ckpt_path)
-  es.step(1.0, 1)   # saves original weights
+  es.step(0.8, 1)   # saves original weights
 
   # Perturb weights, then restore
   model.weight.data.fill_(0.0)
@@ -103,7 +103,7 @@ def test_early_stopping_load_weights_only(tmp_path):
   model = nn.Linear(4, 2)
   ckpt_path = str(tmp_path / "best.pt")
   es = EarlyStopping(patience=3, model=model, ckpt_path=ckpt_path)
-  es.step(1.0, 1)
+  es.step(0.8, 1)
 
   with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")

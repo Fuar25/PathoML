@@ -31,6 +31,7 @@ def test_patient_metrics_computed(synthetic_dataset, model_builder_fn, trainer_c
     # (1) Patient-level metrics must be populated (not None)
     assert fold.patient_acc is not None
     assert fold.patient_auc is not None
+    assert fold.patient_f1 is not None
 
 
 def test_checkpoints_saved(synthetic_dataset, model_builder_fn, trainer_config, tmp_path):

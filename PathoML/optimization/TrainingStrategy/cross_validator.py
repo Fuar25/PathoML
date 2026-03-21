@@ -9,13 +9,12 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.optim as optim
-from sklearn.model_selection import GroupKFold, StratifiedGroupKFold
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from PathoML.config.config import RunTimeConfig, TrainingConfig
 from PathoML.interfaces import BaseDataset
-from ..training_utils import TrainingResult, EarlyStopping
+from ..training_utils import TrainingResult, EarlyStopping, stratified_patient_split
 from ..patient_aggregation import aggregate_patient_predictions
 from .training_base import TrainingMixin, Strategy
 
@@ -29,12 +28,13 @@ class FoldResult:
   """Results container for a single fold."""
   fold: int
   best_epoch: int
-  val_loss: float
+  val_auc: float
   test_loss: float
   test_acc: float
   test_auc: float
   patient_acc: Optional[float] = None
   patient_auc: Optional[float] = None
+  patient_f1: Optional[float] = None
   checkpoint_name: Optional[str] = None
 
 
@@ -120,19 +120,13 @@ class CrossValidator(Strategy, TrainingMixin):
     """Build the K-fold split iterator. Returns (split_iter, patient_ids_array)."""
     all_indices = np.arange(len(self.dataset))
     patient_ids = np.array(self.dataset.get_patient_ids())
-    labels = np.array([float(self.dataset[i]['label']) for i in range(len(self.dataset))])
+    labels = np.array(self.dataset.get_labels(), dtype=float)
 
-    # (1) Binary: use stratified group split to balance class ratio across folds
-    if self.num_classes == 1:
-      splitter = StratifiedGroupKFold(
-        n_splits=self.k_folds, shuffle=True, random_state=self.training_cfg.seed
-      )
-      split_iter = splitter.split(all_indices, labels, groups=patient_ids)
-    else:
-      splitter = GroupKFold(n_splits=self.k_folds)
-      split_iter = splitter.split(all_indices, groups=patient_ids)
-
-    return split_iter, patient_ids
+    splits = stratified_patient_split(
+      all_indices, patient_ids, labels,
+      n_splits=self.k_folds, seed=self.training_cfg.seed,
+    )
+    return iter(splits), patient_ids
 
   def _train_single_fold(
     self,
@@ -185,17 +179,18 @@ class CrossValidator(Strategy, TrainingMixin):
     )
 
     # (7) Compute patient-level metrics (runtime, no disk I/O)
-    patient_acc, patient_auc = self._compute_patient_metrics(test_details)
+    patient_acc, patient_auc, patient_f1 = self._compute_patient_metrics(test_details)
 
     result = FoldResult(
       fold=fold,
       best_epoch=early_stopping.best_epoch,
-      val_loss=early_stopping.best_val_loss,
+      val_auc=early_stopping.best_val_auc,
       test_loss=test_loss,
       test_acc=test_acc,
       test_auc=test_auc,
       patient_acc=patient_acc,
       patient_auc=patient_auc,
+      patient_f1=patient_f1,
       checkpoint_name=os.path.basename(ckpt_path),
     )
     return result, test_details
@@ -280,6 +275,7 @@ class CrossValidator(Strategy, TrainingMixin):
     best_epochs  = [r.best_epoch  for r in fold_results]
     patient_aucs = [r.patient_auc for r in fold_results]
     patient_accs = [r.patient_acc for r in fold_results]
+    patient_f1s  = [r.patient_f1  for r in fold_results]
 
     print(f"\n{'='*70}")
     print("Cross-Validation Summary:")
@@ -288,6 +284,7 @@ class CrossValidator(Strategy, TrainingMixin):
     print(f"  Avg Test Acc:    {np.nanmean(test_accs):.4f} ± {np.nanstd(test_accs):.4f}")
     print(f"  Avg Patient AUC: {np.nanmean(patient_aucs):.4f} ± {np.nanstd(patient_aucs):.4f}")
     print(f"  Avg Patient Acc: {np.nanmean(patient_accs):.4f} ± {np.nanstd(patient_accs):.4f}")
+    print(f"  Avg Patient F1:  {np.nanmean(patient_f1s):.4f} ± {np.nanstd(patient_f1s):.4f}")
     print(f"  Avg Best Epoch:  {np.nanmean(best_epochs):.1f} ± {np.nanstd(best_epochs):.1f}")
     print(f"  Total Time:      {total_time/60:.2f} min")
     print(f"{'='*70}")

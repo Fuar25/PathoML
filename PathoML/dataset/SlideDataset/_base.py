@@ -157,5 +157,8 @@ class _MultimodalSlideBase(BaseDataset):
   def get_patient_ids(self) -> List[str]:
     return [item['patient_id'] for item in self.samples]
 
+  def get_labels(self) -> List[int]:
+    return [item['label'] for item in self.samples]
+
   def __len__(self) -> int:
     return len(self.samples)

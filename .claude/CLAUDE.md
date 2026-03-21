@@ -22,6 +22,15 @@ PathoML maps directly to the mental model of data-driven modeling — its API mi
 - **Full extensibility** — no ceiling on what advanced users can achieve
 These are reconciled through accurate abstractions — the precise decomposition that makes simplicity and extensibility non-competing.
 
+### 1.2 Project Positioning
+PathoML is the **teacher selection and baseline testing** stage of a larger pipeline. The end goal is knowledge distillation — transferring multi-modal teacher knowledge into a lightweight unimodal student (HE-only) for clinical deployment.
+
+Workflow:
+1. **PathoML** (`PathoML/` + `runs/`) — train and compare multi-modal models (different stain combinations × model architectures) to find the best teacher
+2. **Distillation** (`scripts/distillation/`) — distill the selected teacher's knowledge into a student that only requires H&E staining
+
+When the user asks to "test a new model" or "try a new architecture", the default context is teacher selection — training a candidate model in `runs/` and comparing its AUC against existing baselines.
+
 ## 2. Data Organization
 
 1. Raw Data
