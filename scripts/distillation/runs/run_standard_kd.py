@@ -8,9 +8,10 @@
   - Full:       alpha=1, beta=1, temperature=4
 
 流程:
-  (1) make_config  — 构建 RunTimeConfig 和 StandardKDLoss
-  (2) run_once     — 单次 K 折 CV
-  (3) main         — N_RUNS 次重复 + log_results
+  (1) load_manifest — 从 teacher manifest 加载 fold 参数、模态路径、checkpoint 模板
+  (2) make_config   — 构建 RunTimeConfig 和 StandardKDLoss
+  (3) run_once      — 单次 K 折 CV
+  (4) main          — N_RUNS 次重复 + log_results
 """
 
 import sys
@@ -22,15 +23,16 @@ _PATHOML_ROOT = os.path.join(_DISTILL_ROOT, '..', '..')
 sys.path.insert(0, os.path.abspath(_DISTILL_ROOT))
 sys.path.insert(0, os.path.abspath(_PATHOML_ROOT))
 
-from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
 
 from PathoML.config.config import RunTimeConfig
+from PathoML.dataset.utils import find_common_sample_keys
 from PathoML.optimization.trainer import Trainer
 
 from dataset import DistillationDataset
+from manifest import load_manifest
 from models.student import StudentABMIL
 from trainer import DistillCrossValidator
 from losses import StandardKDLoss
@@ -40,45 +42,33 @@ from losses import StandardKDLoss
 # 配置区 — 修改此处
 # =============================================================================
 
-_SLIDE_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Slide-Feature'
+# (1) Teacher 依赖：指向 teacher manifest（自动继承 fold 参数、模态路径、ckpt 模板）
+TEACHER_MANIFEST = '/home/william/PycharmProjects/PathoML/runs/outputs/concat_HE_CD20_mlp/manifest.json'
 
-@dataclass
-class Paths:
-  patch_root:  str = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Patch-Feature/HE'
-  slide_roots: dict = field(default_factory=lambda: {
-    'he':   f'{_SLIDE_ROOT}/HE',
-    'cd20': f'{_SLIDE_ROOT}/CD20',
-    'cd3':  f'{_SLIDE_ROOT}/CD3',
-  })
-  # Teacher checkpoint 路径模板，{run} 替换为 run 编号（0-indexed，02d），{fold} 替换为折编号（1-indexed）
-  teacher_ckpt_tmpl: str = '/home/william/PycharmProjects/PathoML/runs/outputs/concat_HE_CD20_CD3_mlp/run_{run:02d}/model_fold_{fold}_best.pth'
-  outputs_root:      str = '/home/william/PycharmProjects/PathoML/runs/outputs/distillation'
+# (2) 蒸馏独有数据路径（teacher 训练不涉及 patch 级特征）
+PATCH_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Patch-Feature/HE'
 
-PATHS = Paths()
+# (3) 蒸馏输出
+OUTPUTS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs')
+LOG_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results_log.txt')
 
-# 训练超参
-EPOCHS    = 100
-PATIENCE  = 10
-LR        = 1e-4
-WD        = 1e-5
-DEVICE    = 'cuda:0'
-
-# 蒸馏超参（消融实验修改此处）
-ALPHA       = 0      # L_feat 权重（Baseline: 0）
+# (4) 蒸馏超参（消融实验修改此处）
+ALPHA       = 1      # L_feat 权重（Baseline: 0）
 BETA        = 1      # L_kd 权重（Baseline: 0）
 TEMPERATURE = 4.0
 
-# 实验名称（手动与蒸馏配置对应，用于子目录和日志标识）
+# (5) 实验名称
 CONDITION_NAME = f"distill_a{ALPHA}b{BETA}T{TEMPERATURE}"
 
-# 重复运行配置
-N_RUNS    = 10
-K_FOLDS   = 5
-BASE_SEED = 42
-
-LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results_log.txt")
-
+# (6) Student 架构
 STUDENT_KWARGS = dict(patch_dim=1536, hidden_dim=256, attention_dim=128, dropout=0.2)
+
+# (7) 蒸馏训练超参（可以与 teacher 不同）
+EPOCHS   = 100
+PATIENCE = 10
+LR       = 1e-4
+WD       = 1e-5
+DEVICE   = 'cuda:0'
 
 
 # =============================================================================
@@ -105,6 +95,7 @@ def run_once(
   config: RunTimeConfig,
   distill_loss: StandardKDLoss,
   teacher_ckpt_tmpl: str,
+  k_folds: int,
 ) -> tuple[list[float], list[float]]:
   """运行一次 K 折 CV，返回每折的 (patient_auc_list, patient_f1_list)。"""
   cv = DistillCrossValidator(
@@ -113,7 +104,7 @@ def run_once(
     config            = config,
     distill_loss      = distill_loss,
     teacher_ckpt_tmpl = teacher_ckpt_tmpl,
-    k_folds           = K_FOLDS,
+    k_folds           = k_folds,
   )
   result = Trainer(cv).fit()
   fold_aucs = [f.patient_auc for f in result.fold_results]
@@ -121,7 +112,9 @@ def run_once(
   return fold_aucs, fold_f1s
 
 
-def log_results(results: dict, log_path: str, config: RunTimeConfig, distill_loss: StandardKDLoss, slide_modalities: list) -> None:
+def log_results(results: dict, log_path: str, config: RunTimeConfig,
+                distill_loss: StandardKDLoss, slide_modalities: list,
+                n_runs: int, k_folds: int, base_seed: int) -> None:
   """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
   sep  = "=" * 100
   hsep = "─" * 100
@@ -148,7 +141,7 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig, distill_los
   # (1) 运行配置摘要
   t = config.training
   lines.append(hsep)
-  lines.append(f"N_RUNS={N_RUNS}  K_FOLDS={K_FOLDS}  BASE_SEED={BASE_SEED}")
+  lines.append(f"N_RUNS={n_runs}  K_FOLDS={k_folds}  BASE_SEED={base_seed}")
   lines.append(
     f"epochs={t.epochs}  patience={t.patience}  "
     f"lr={t.learning_rate}  wd={t.weight_decay}  device={t.device}"
@@ -173,10 +166,17 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig, distill_los
 # =============================================================================
 
 def main():
+  # (1) 从 teacher manifest 加载依赖信息（fold 参数、模态路径、ckpt 模板）
+  manifest = load_manifest(TEACHER_MANIFEST)
+
+  # (2) 构建 dataset（intersection 从 manifest 模态路径推导）
   print('Loading dataset...')
+  common_keys = find_common_sample_keys(list(manifest.slide_modality_paths.values()))
+  print(f'  公共样本数: {len(common_keys)}')
   dataset = DistillationDataset(
-    patch_root  = PATHS.patch_root,
-    slide_roots = PATHS.slide_roots,
+    patch_root  = PATCH_ROOT,
+    slide_roots = manifest.slide_modality_paths,
+    allowed_sample_keys = common_keys,
   )
   print(f'  {len(dataset)} samples, classes: {dataset.classes}')
 
@@ -188,18 +188,18 @@ def main():
   run_f1_means = []
   all_fold_f1s = []
 
-  for i in range(N_RUNS):
-    seed = BASE_SEED + i
-    run_dir = os.path.join(PATHS.outputs_root, CONDITION_NAME, f"run_{i:02d}")
+  for i in range(manifest.n_runs):
+    seed = manifest.base_seed + i
+    run_dir = os.path.join(OUTPUTS_ROOT, CONDITION_NAME, f"run_{i:02d}")
     os.makedirs(run_dir, exist_ok=True)
 
     config.training.seed    = seed
     config.logging.save_dir = run_dir
-    tmpl = PATHS.teacher_ckpt_tmpl.replace('{run:02d}', f'{i:02d}')
+    tmpl = manifest.ckpt_tmpl.replace('{run:02d}', f'{i:02d}')
 
-    print(f"\n[{CONDITION_NAME}] Run {i+1}/{N_RUNS}  (seed={seed})")
+    print(f"\n[{CONDITION_NAME}] Run {i+1}/{manifest.n_runs}  (seed={seed})")
 
-    fold_aucs, fold_f1s = run_once(dataset, config, distill_loss, tmpl)
+    fold_aucs, fold_f1s = run_once(dataset, config, distill_loss, tmpl, manifest.k_folds)
     mean = float(np.mean(fold_aucs))
     run_means.append(mean)
     all_fold_aucs.extend(fold_aucs)
@@ -218,7 +218,10 @@ def main():
     LOG_FILE,
     config,
     distill_loss,
-    list(PATHS.slide_roots.keys()),
+    manifest.modality_names,
+    manifest.n_runs,
+    manifest.k_folds,
+    manifest.base_seed,
   )
 
 

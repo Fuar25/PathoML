@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from common import (
-  run_condition, log_results, find_common_sample_keys,
+  run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
   CD20_BASE, CD3_BASE,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD, MLP_HIDDEN_DIM, DROPOUT_RATE,
@@ -16,7 +16,7 @@ from common import (
 _PATCH_FEAT_ROOT = "/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Patch-Feature"
 HE_PATCH_BASE = f"{_PATCH_FEAT_ROOT}/HE"
 
-CONDITION_NAME = "unimodal_HE_abmil"
+CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 
 
 def make_config(common_keys) -> RunTimeConfig:
@@ -36,12 +36,14 @@ def make_config(common_keys) -> RunTimeConfig:
 
 def main():
   # 与其他实验保持一致：取 HE patch 与 CD20, CD3 slide 的交集样本
-  common_keys = find_common_sample_keys([HE_PATCH_BASE, CD20_BASE, CD3_BASE])
+  intersection_bases = [HE_PATCH_BASE, CD20_BASE, CD3_BASE]
+  common_keys = find_common_sample_keys(intersection_bases)
   print(f"公共样本数（HE_patch ∩ CD20 ∩ CD3）: {len(common_keys)}")
 
   config = make_config(common_keys)
   results = run_condition(CONDITION_NAME, config, N_RUNS, K_FOLDS, output_dir=OUTPUTS_DIR)
-  log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config)
+  log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config,
+              sample_intersection=modality_names(intersection_bases))
 
 
 if __name__ == "__main__":

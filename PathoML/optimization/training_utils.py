@@ -5,6 +5,8 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import List, Tuple
 
+import warnings
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -77,17 +79,20 @@ def stratified_patient_split(
   n_splits: int,
   seed: int,
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
-  """Patient-level stratified split, mapped back to sample indices.
+  """Patient-level stratified split, mapped back to slide indices.
+
+  Assumption: all slides of the same patient share the same label (patient-level
+  diagnosis). The label is taken from the first occurrence of each patient.
 
   (1) Deduplicate to unique patients with labels.
   (2) StratifiedKFold on patients (binary & multi-class).
       Fallback to KFold if any class has fewer patients than n_splits.
-  (3) Map patient splits back to sample indices.
+  (3) Map patient splits back to slide indices.
 
   Args:
-    indices:     Sample indices (e.g. np.arange(len(dataset)) or a subset).
-    patient_ids: Patient ID for each sample (same length as indices).
-    labels:      Label for each sample (same length as indices).
+    indices:     Slide indices (e.g. np.arange(len(dataset)) or a subset).
+    patient_ids: Patient ID for each slide (same length as indices).
+    labels:      Label for each slide (same length as indices).
     n_splits:    Number of folds to split patients into.
     seed:        Random seed for reproducibility.
 
@@ -99,10 +104,10 @@ def stratified_patient_split(
   patient_labels = labels[first_idx].astype(int)
   n_patients = len(unique_patients)
 
-  # (1.1) Build patient_id -> [sample indices] mapping
-  patient_to_samples = {}
+  # (1.1) Build patient_id -> [slide indices] mapping
+  patient_to_slides = {}
   for i, pid in enumerate(patient_ids):
-    patient_to_samples.setdefault(pid, []).append(indices[i])
+    patient_to_slides.setdefault(pid, []).append(indices[i])
 
   # (2) Stratified K-fold on patients
   #     Cap n_splits so each fold has ≥1 patient per class
@@ -110,15 +115,19 @@ def stratified_patient_split(
   effective_splits = min(n_splits, n_patients, min_class_count)
   if effective_splits < 2:
     return [(indices, np.array([], dtype=int))]
+  if effective_splits < n_splits:
+    warnings.warn(
+      f"n_splits={n_splits} capped to {effective_splits} "
+      f"(min class has only {min_class_count} patients, total {n_patients})")
 
   splitter = StratifiedKFold(n_splits=effective_splits, shuffle=True, random_state=seed)
   fold_iter = splitter.split(unique_patients, patient_labels)
 
-  # (3) Map patient-level folds back to sample indices
+  # (3) Map patient-level folds back to slide indices
   splits = []
   for p_group_a, p_group_b in fold_iter:
-    sample_a = np.concatenate([patient_to_samples[unique_patients[p]] for p in p_group_a])
-    sample_b = np.concatenate([patient_to_samples[unique_patients[p]] for p in p_group_b])
-    splits.append((sample_a, sample_b))
+    slide_a = np.concatenate([patient_to_slides[unique_patients[p]] for p in p_group_a])
+    slide_b = np.concatenate([patient_to_slides[unique_patients[p]] for p in p_group_b])
+    splits.append((slide_a, slide_b))
 
   return splits

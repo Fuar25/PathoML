@@ -20,7 +20,8 @@ Student: he_patches  (B, N, D_patch) → StudentABMIL → hidden (B,256) + logit
 |------|---------|
 | `losses.py` | `DistillationLoss` ABC + `StandardKDLoss` implementation |
 | `trainer.py` | `DistillCrossValidator(CrossValidator)` — accepts any `DistillationLoss` |
-| `dataset.py` | `DistillationDataset` — loads HE patches + multi-modal slide embeddings |
+| `dataset.py` | `DistillationDataset` — loads HE patches + multi-modal slide embeddings; reuses `find_common_sample_keys` and `PATIENT_ID_PATTERN` from PathoML |
+| `manifest.py` | `TeacherManifest` dataclass + `load_manifest()` — reads teacher `manifest.json` |
 | `models/student.py` | `StudentABMIL` — ABMIL on HE patches |
 | `models/teacher.py` | `TeacherMLP` — loads frozen PathoML MLP checkpoint |
 | `runs/` | Experiment scripts, one per distillation method |
@@ -34,3 +35,4 @@ To add a new distillation method:
 ## 5. Decided
 - Teacher checkpoints are fold-specific; `execute()` loads and verifies fold splits each fold.
 - `DistillationLoss` is the single extension point for new methods — trainer delegates all loss computation to it.
+- **Teacher manifest is the formal interface between PathoML training and distillation.** Distillation scripts must call `load_manifest()` to obtain teacher configuration (fold params, modality paths, checkpoint template). If the manifest does not exist, `load_manifest()` raises `FileNotFoundError` with instructions to run the teacher training first.

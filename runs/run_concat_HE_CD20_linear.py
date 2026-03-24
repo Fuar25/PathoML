@@ -5,14 +5,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from common import (
-  run_condition, log_results, find_common_sample_keys,
+  run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
   HE_BASE, CD20_BASE,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
 
-CONDITION_NAME = "HE+CD20_concat_linear"
+CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 
 
 def make_config(common_keys) -> RunTimeConfig:
@@ -35,12 +35,14 @@ def make_config(common_keys) -> RunTimeConfig:
 
 
 def main():
-  common_keys = find_common_sample_keys([HE_BASE, CD20_BASE])
+  intersection_bases = [HE_BASE, CD20_BASE]
+  common_keys = find_common_sample_keys(intersection_bases)
   print(f"公共样本数（HE ∩ CD20）: {len(common_keys)}")
 
   config = make_config(common_keys)
   results = run_condition(CONDITION_NAME, config, N_RUNS, K_FOLDS, output_dir=OUTPUTS_DIR)
-  log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config)
+  log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config,
+              sample_intersection=modality_names(intersection_bases))
 
 
 if __name__ == "__main__":

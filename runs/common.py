@@ -3,6 +3,7 @@
 # 包含：PathoML 导入、数据路径常量、超参数默认值、工具函数。
 # 每个 run_*.py 只需 from common import ... 即可使用。
 
+import json
 import os
 import sys
 from datetime import datetime
@@ -34,7 +35,7 @@ CD3_BASE   = f"{_FEAT_ROOT}/CD3"
 
 # ─── 超参数默认值 ─────────────────────────────────────────────────────────────
 
-N_RUNS         = 10
+N_RUNS         = 5
 K_FOLDS        = 5
 DEVICE         = "cuda:0"
 EPOCHS         = 100
@@ -56,6 +57,11 @@ SHARED_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resu
 
 
 # ─── 工具函数 ─────────────────────────────────────────────────────────────────
+
+def modality_names(bases: list[str]) -> list[str]:
+  """从数据路径列表中提取模态名（取路径末尾目录名）。"""
+  return [os.path.basename(b.rstrip("/")) for b in bases]
+
 
 def run_cv(config: RunTimeConfig, k_folds: int) -> tuple[list[float], list[float]]:
   """运行一次 k 折 CV，返回每折的 (patient_auc_list, patient_f1_list)。"""
@@ -114,10 +120,53 @@ def run_condition(
     fold_str = "  ".join(f"fold{j+1}={v:.4f}" for j, v in enumerate(fold_aucs))
     print(f"  {fold_str}  →  mean={run_mean:.4f}")
 
+  # (1) 训练完成后写入 manifest，供下游蒸馏脚本读取 teacher 配置
+  _save_manifest(
+    condition_dir=os.path.join(output_dir, condition_name),
+    condition_name=condition_name,
+    config=base_config,
+    n_runs=n_runs,
+    k_folds=k_folds,
+    base_seed=base_seed,
+  )
+
   return {
     "run_means": run_means, "all_fold_aucs": all_fold_aucs,
     "run_f1_means": run_f1_means, "all_fold_f1s": all_fold_f1s,
   }
+
+
+def _save_manifest(
+  condition_dir: str,
+  condition_name: str,
+  config: RunTimeConfig,
+  n_runs: int,
+  k_folds: int,
+  base_seed: int,
+) -> None:
+  """训练完成后写入 manifest.json，供下游蒸馏脚本读取 teacher 配置。
+
+  manifest 包含蒸馏所需的全部 teacher 信息（fold 参数、模态路径、checkpoint 模板），
+  消除蒸馏脚本中的手动参数对齐。
+  """
+  dkw = config.dataset.dataset_kwargs
+  manifest = {
+    "condition_name": condition_name,
+    "created_at": datetime.now().isoformat(timespec="seconds"),
+    "n_runs": n_runs,
+    "k_folds": k_folds,
+    "base_seed": base_seed,
+    "modality_names": dkw.get("modality_names", []),
+    "modality_paths": dkw.get("modality_paths", {}),
+    "model_name": config.model.model_name,
+    "model_kwargs": config.model.model_kwargs,
+    # (1) 相对路径模板（相对于 manifest 所在目录）
+    "ckpt_template": "run_{run:02d}/model_fold_{fold}_best.pth",
+  }
+  manifest_path = os.path.join(condition_dir, "manifest.json")
+  with open(manifest_path, "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2, ensure_ascii=False)
+  print(f"Teacher manifest 已写入: {manifest_path}")
 
 
 def log_results(
@@ -128,6 +177,7 @@ def log_results(
   n_runs: int = N_RUNS,
   k_folds: int = K_FOLDS,
   base_seed: int = BASE_SEED,
+  sample_intersection: list[str] | None = None,
 ) -> None:
   """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
   # (1) 格式化表格
@@ -155,6 +205,8 @@ def log_results(
 
   # (2) 配置摘要（排除 path/name 类字段）
   lines.append(hsep)
+  if sample_intersection:
+    lines.append(f"样本交集: {' ∩ '.join(sample_intersection)}")
   lines.append(f"N_RUNS={n_runs}  K_FOLDS={k_folds}  BASE_SEED={base_seed}")
   if config is not None:
     t = config.training
