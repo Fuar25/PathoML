@@ -27,7 +27,7 @@ PathoML is the **teacher selection and baseline testing** stage of a larger pipe
 
 Workflow:
 1. **PathoML** (`PathoML/` + `runs/`) — train and compare multi-modal models (different stain combinations × model architectures) to find the best teacher
-2. **Distillation** (`scripts/distillation/`) — distill the selected teacher's knowledge into a student that only requires H&E staining
+2. **Distillation** (`distillation/`) — distill the selected teacher's knowledge into a student that only requires H&E staining
 
 When the user asks to "test a new model" or "try a new architecture", the default context is teacher selection — training a candidate model in `runs/` and comparing its AUC against existing baselines.
 

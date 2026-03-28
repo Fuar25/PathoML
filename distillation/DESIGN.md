@@ -1,4 +1,4 @@
-# scripts/distillation
+# distillation
 
 ## 1. Purpose
 Cross-modal knowledge distillation: transfer multi-modal slide-level teacher knowledge into a unimodal HE patch-level student.

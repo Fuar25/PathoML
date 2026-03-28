@@ -19,9 +19,9 @@ import os
 
 # (1) 路径设置：确保 distillation/ 和 PathoML 可被 import
 _DISTILL_ROOT = os.path.join(os.path.dirname(__file__), '..')
-_PATHOML_ROOT = os.path.join(_DISTILL_ROOT, '..', '..')
+_PROJECT_ROOT = os.path.join(_DISTILL_ROOT, '..')
 sys.path.insert(0, os.path.abspath(_DISTILL_ROOT))
-sys.path.insert(0, os.path.abspath(_PATHOML_ROOT))
+sys.path.insert(0, os.path.abspath(_PROJECT_ROOT))
 
 from datetime import datetime
 
