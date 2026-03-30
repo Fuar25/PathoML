@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (
   run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
-  HE_BASE, CD20_BASE, CD3_BASE,
+  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
@@ -18,7 +18,7 @@ CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 def make_config(common_keys) -> RunTimeConfig:
   config = RunTimeConfig()
   config.dataset.dataset_name = "UnimodalSlideDataset"
-  config.dataset.dataset_kwargs["data_path"] = CD20_BASE
+  config.dataset.dataset_kwargs["data_path"] = CD20_SLIDE_BASE
   config.dataset.dataset_kwargs["allowed_sample_keys"] = common_keys
   config.model.model_name = "linear_probe"
   config.model.model_kwargs = {}
@@ -32,7 +32,7 @@ def make_config(common_keys) -> RunTimeConfig:
 
 def main():
   # 仅保留 HE 和 CD20 均存在的样本，与多模态实验保持一致
-  intersection_bases = [HE_BASE, CD20_BASE, CD3_BASE]
+  intersection_bases = [HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE]
   common_keys = find_common_sample_keys(intersection_bases)
   print(f"公共样本数（HE ∩ CD20 ∩ CD3）: {len(common_keys)}")
 

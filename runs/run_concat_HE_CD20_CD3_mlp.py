@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (
   run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
-  HE_BASE, CD20_BASE, CD3_BASE,
+  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD, DROPOUT_RATE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
@@ -21,9 +21,9 @@ def make_config(common_keys) -> RunTimeConfig:
   config = RunTimeConfig()
   config.dataset.dataset_name = "MultimodalConcatSlideDataset"
   config.dataset.dataset_kwargs["modality_paths"] = {
-    "HE":   HE_BASE,
-    "CD20": CD20_BASE,
-    "CD3":  CD3_BASE,
+    "HE":   HE_SLIDE_BASE,
+    "CD20": CD20_SLIDE_BASE,
+    "CD3":  CD3_SLIDE_BASE,
   }
   config.dataset.dataset_kwargs["modality_names"] = ["HE", "CD20", "CD3"]
   config.dataset.dataset_kwargs["allowed_sample_keys"] = common_keys
@@ -38,7 +38,7 @@ def make_config(common_keys) -> RunTimeConfig:
 
 
 def main():
-  intersection_bases = [HE_BASE, CD20_BASE, CD3_BASE]
+  intersection_bases = [HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE]
   common_keys = find_common_sample_keys(intersection_bases)
   print(f"公共样本数（HE ∩ CD20 ∩ CD3）: {len(common_keys)}")
 
