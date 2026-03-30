@@ -54,3 +54,4 @@ scripts/*
 !scripts/DESIGN.md
 !scripts/utils/
 runs/outputs/*
+distillation/runs/outputs/*

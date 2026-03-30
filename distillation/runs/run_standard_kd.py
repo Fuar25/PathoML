@@ -43,17 +43,20 @@ from losses import StandardKDLoss
 # =============================================================================
 
 # (1) Teacher 依赖：指向 teacher manifest（自动继承 fold 参数、模态路径、ckpt 模板）
-TEACHER_MANIFEST = '/home/william/PycharmProjects/PathoML/runs/outputs/concat_HE_CD20_mlp/manifest.json'
+TEACHER_MANIFEST = '/home/william/PycharmProjects/PathoML/runs/outputs/run_concat_HE_CD20_mlp/manifest.json'
 
 # (2) 蒸馏独有数据路径（teacher 训练不涉及 patch 级特征）
 PATCH_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Patch-Feature/HE'
+
+# (2.1) 自定义样本交集模态（None = 使用 manifest 全部 slide 模态）
+INTERSECTION_MODALITIES = ['HE', 'CD20', 'CD3']
 
 # (3) 蒸馏输出
 OUTPUTS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs')
 LOG_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results_log.txt')
 
 # (4) 蒸馏超参（消融实验修改此处）
-ALPHA       = 1      # L_feat 权重（Baseline: 0）
+ALPHA       = 0      # L_feat 权重（Baseline: 0）
 BETA        = 1      # L_kd 权重（Baseline: 0）
 TEMPERATURE = 4.0
 
@@ -113,8 +116,9 @@ def run_once(
 
 
 def log_results(results: dict, log_path: str, config: RunTimeConfig,
-                distill_loss: StandardKDLoss, slide_modalities: list,
-                n_runs: int, k_folds: int, base_seed: int) -> None:
+                distill_loss: StandardKDLoss, teacher_modalities: list,
+                n_runs: int, k_folds: int, base_seed: int,
+                sample_intersection: list[str] | None = None) -> None:
   """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
   sep  = "=" * 100
   hsep = "─" * 100
@@ -141,6 +145,9 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig,
   # (1) 运行配置摘要
   t = config.training
   lines.append(hsep)
+  if sample_intersection:
+    lines.append(f"样本交集: {' ∩ '.join(sample_intersection)}")
+  lines.append(f"teacher_modalities: {', '.join(teacher_modalities)}")
   lines.append(f"N_RUNS={n_runs}  K_FOLDS={k_folds}  BASE_SEED={base_seed}")
   lines.append(
     f"epochs={t.epochs}  patience={t.patience}  "
@@ -149,7 +156,6 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig,
   lines.append(f"distill_loss: {distill_loss}")
   kw_str = "  ".join(f"{k}={v}" for k, v in STUDENT_KWARGS.items())
   lines.append(f"student: {kw_str}")
-  lines.append(f"slide_modalities: {', '.join(slide_modalities)}")
   lines.append(sep)
   lines.append("")
 
@@ -169,10 +175,19 @@ def main():
   # (1) 从 teacher manifest 加载依赖信息（fold 参数、模态路径、ckpt 模板）
   manifest = load_manifest(TEACHER_MANIFEST)
 
-  # (2) 构建 dataset（intersection 从 manifest 模态路径推导）
+  # (2) 构建 dataset（自定义交集或从 manifest 模态路径推导）
   print('Loading dataset...')
-  common_keys = find_common_sample_keys(list(manifest.slide_modality_paths.values()))
-  print(f'  公共样本数: {len(common_keys)}')
+  slide_paths = manifest.slide_modality_paths
+  feat_root = os.path.dirname(next(iter(slide_paths.values())).rstrip("/"))
+  if INTERSECTION_MODALITIES is not None:
+    intersection_bases = [os.path.join(feat_root, m) for m in INTERSECTION_MODALITIES]
+    intersection_names = list(INTERSECTION_MODALITIES)
+  else:
+    intersection_bases = list(slide_paths.values())
+    intersection_names = list(manifest.modality_names)
+  
+  common_keys = find_common_sample_keys(intersection_bases)
+  print(f'  公共样本数（{" ∩ ".join(intersection_names)}）: {len(common_keys)}')
   dataset = DistillationDataset(
     patch_root  = PATCH_ROOT,
     slide_roots = manifest.slide_modality_paths,
@@ -222,6 +237,7 @@ def main():
     manifest.n_runs,
     manifest.k_folds,
     manifest.base_seed,
+    sample_intersection=intersection_names,
   )
 
 
