@@ -44,6 +44,7 @@ class TrainingConfig:
   device: str = 'cuda'
   patience: int = 5
   patient_threshold: float = 0.5
+  scheduler: str = 'none'  # 'none' | 'cosine'
 
 
 @dataclass

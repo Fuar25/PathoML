@@ -51,8 +51,11 @@ PATIENCE       = 10
 LR             = 1e-4
 WD             = 1e-5
 BASE_SEED      = 42
-MLP_HIDDEN_DIM = 256
-DROPOUT_RATE   = 0.2
+MLP_HIDDEN_DIM     = 256
+DROPOUT_RATE       = 0.2
+SLIDE_BATCH_SIZE   = 16
+SLIDE_LR           = 4e-4
+SLIDE_PATIENCE     = 30
 
 
 # ─── 路径配置 ─────────────────────────────────────────────────────────────────
@@ -220,7 +223,7 @@ def log_results(
     t = config.training
     lines.append(
       f"epochs={t.epochs}  patience={t.patience}  "
-      f"lr={t.learning_rate}  wd={t.weight_decay}  device={t.device}"
+      f"lr={t.learning_rate}  wd={t.weight_decay}  batch_size={t.batch_size}  device={t.device}"
     )
     m = config.model
     if m.model_kwargs:

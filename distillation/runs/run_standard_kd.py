@@ -43,7 +43,7 @@ from losses import StandardKDLoss
 # =============================================================================
 
 # (1) Teacher 依赖：指向 teacher manifest（自动继承 fold 参数、模态路径、ckpt 模板）
-TEACHER_MANIFEST = '/home/william/PycharmProjects/PathoML/runs/outputs/run_concat_HE_CD20_mlp/manifest.json'
+TEACHER_MANIFEST = '/home/william/PycharmProjects/PathoML/runs/outputs/run_concat_HE_CD20_CD3_mlp/manifest.json'
 
 # (2) 蒸馏独有数据路径（teacher 训练不涉及 patch 级特征）
 PATCH_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Patch-Feature/HE'

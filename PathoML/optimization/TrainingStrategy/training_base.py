@@ -18,11 +18,34 @@ import numpy as np
 import torch
 import torch.nn as nn
 from sklearn.metrics import f1_score, roc_auc_score
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from ..training_utils import EarlyStopping, TrainingResult, stratified_patient_split
 from ..patient_aggregation import aggregate_patient_predictions
+
+
+# ---------------------------------------------------------------------------
+# (0) Collate helper — handles variable-length tensors (e.g. coords)
+# ---------------------------------------------------------------------------
+
+def _variable_size_collate(batch):
+  """Collate that falls back to list for variable-size tensors."""
+  elem = batch[0]
+  result = {}
+  for key in elem:
+    values = [d[key] for d in batch]
+    if torch.is_tensor(values[0]):
+      if all(v.shape == values[0].shape for v in values):
+        result[key] = torch.stack(values, 0)
+      else:
+        result[key] = values
+    elif isinstance(values[0], (int, float)):
+      result[key] = torch.tensor(values)
+    else:
+      result[key] = values
+  return result
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +63,15 @@ class TrainingMixin:
 
   def _move_to_device(self, batch: Dict[str, Any]) -> Dict[str, Any]:
     """Move all tensor values in a batch dict to self.device."""
-    return {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in batch.items()}
+    out = {}
+    for k, v in batch.items():
+      if torch.is_tensor(v):
+        out[k] = v.to(self.device)
+      elif isinstance(v, list) and v and torch.is_tensor(v[0]):
+        out[k] = [t.to(self.device) for t in v]
+      else:
+        out[k] = v
+    return out
 
   @staticmethod
   def _model_inputs(batch: Dict[str, Any]) -> Dict[str, Any]:
@@ -80,10 +111,11 @@ class TrainingMixin:
     depending on whether test_ids is provided.
     """
     bs = self.training_cfg.batch_size
-    train_loader = DataLoader(Subset(self.dataset, train_ids), batch_size=bs, shuffle=True)
-    val_loader   = DataLoader(Subset(self.dataset, val_ids),   batch_size=bs, shuffle=False)
+    collate = _variable_size_collate if bs > 1 else None
+    train_loader = DataLoader(Subset(self.dataset, train_ids), batch_size=bs, shuffle=True,  collate_fn=collate)
+    val_loader   = DataLoader(Subset(self.dataset, val_ids),   batch_size=bs, shuffle=False, collate_fn=collate)
     if test_ids is not None:
-      test_loader = DataLoader(Subset(self.dataset, test_ids), batch_size=bs, shuffle=False)
+      test_loader = DataLoader(Subset(self.dataset, test_ids), batch_size=bs, shuffle=False, collate_fn=collate)
       return train_loader, val_loader, test_loader
     return train_loader, val_loader
 
@@ -113,11 +145,18 @@ class TrainingMixin:
     label: str = '',
   ) -> None:
     """Epoch loop until early stopping. EarlyStopping saves checkpoint on improvement."""
+    if self.training_cfg.scheduler == 'cosine':
+      scheduler = CosineAnnealingLR(optimizer, T_max=self.training_cfg.epochs)
+    else:
+      scheduler = None
+
     start = time.time()
     with tqdm(range(self.training_cfg.epochs), desc=f"  {label}", leave=True) as pbar:
       for epoch in pbar:
         train_loss, _ = self._train_epoch(model, train_loader, criterion, optimizer)
         val_loss, val_acc, val_auc, _ = self._evaluate_with_auc(model, val_loader, criterion)
+        if scheduler:
+          scheduler.step()
 
         should_stop = early_stopping.step(val_auc, epoch + 1)
 
