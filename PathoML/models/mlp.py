@@ -1,4 +1,4 @@
-"""MLP 单隐藏层分类模型。"""
+"""MLP 分类模型，支持可配置的隐藏层数。"""
 
 from typing import Dict
 
@@ -11,9 +11,9 @@ from ..registry import register_model
 
 @register_model('mlp')
 class MLP(BaseModel):
-  """带单隐藏层和 Dropout 的 MLP 分类模型。
+  """带 Dropout 的 MLP 分类模型。
 
-  适用于预计算 WSI 级别特征的分类，相比 LinearProbe 增加一层非线性变换，
+  适用于预计算 WSI 级别特征的分类，相比 LinearProbe 增加非线性变换，
   可作为轻量级基线与 ABMIL 等注意力模型对比。
   """
 
@@ -23,6 +23,7 @@ class MLP(BaseModel):
     hidden_dim: int,
     num_classes: int = 1,
     dropout: float = 0.0,
+    num_layers: int = 1,
     **kwargs,
   ) -> None:
     """初始化 MLP 模型。
@@ -32,16 +33,17 @@ class MLP(BaseModel):
       hidden_dim: 隐藏层维度。
       num_classes: 输出类别数（二分类时为 1）。
       dropout: Dropout 比率，应用于隐藏层激活后。为 0 时不使用 Dropout。
+      num_layers: 隐藏层数量，默认为 1。
       **kwargs: 忽略的额外参数，保持与其他模型签名的兼容性。
     """
     super(MLP, self).__init__()
 
-    self.net = nn.Sequential(
-      nn.Linear(input_dim, hidden_dim),
-      nn.GELU(),
-      nn.Dropout(dropout) if dropout > 0 else nn.Identity(),
-      nn.Linear(hidden_dim, num_classes),
-    )
+    drop = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+    layers = [nn.Linear(input_dim, hidden_dim), nn.GELU(), drop]
+    for _ in range(num_layers - 1):
+      layers += [nn.Linear(hidden_dim, hidden_dim), nn.GELU(), drop]
+    layers.append(nn.Linear(hidden_dim, num_classes))
+    self.net = nn.Sequential(*layers)
 
   def forward(self, data_dict: DataDict) -> Dict[str, torch.Tensor]:
     """对输入特征执行单隐藏层 MLP 分类，返回 logits。
