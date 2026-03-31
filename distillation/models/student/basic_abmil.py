@@ -1,4 +1,4 @@
-"""StudentABMIL: 与PathoML ABMIL架构完全一致的学生模型。
+"""StudentBasicABMIL: 与PathoML ABMIL架构完全一致的基础学生模型。
 
 架构:
   HE patches (B, N, patch_dim)
@@ -16,7 +16,7 @@ import torch.nn as nn
 from PathoML.models.abmil import FeatureEncoder, GatedAttention, LinearClassifier
 
 
-class StudentABMIL(nn.Module):
+class StudentBasicABMIL(nn.Module):
   """与PathoML ABMIL架构完全一致的学生模型，输入HE patch特征，输出hidden和BCE logit。"""
 
   def __init__(
@@ -25,15 +25,25 @@ class StudentABMIL(nn.Module):
     hidden_dim: int = 256,
     attention_dim: int = 128,
     dropout: float = 0.2,
+    proj_dim: int | None = None,
   ) -> None:
+    """
+    Args:
+      proj_dim: 蒸馏 projection head 输出维度（对齐 teacher hidden_dim）。
+                None 时不创建 projection head，'hidden' 直接用于 L_feat。
+    """
     super().__init__()
     self.encoder    = FeatureEncoder(patch_dim, hidden_dim, dropout)
     self.aggregator = GatedAttention(hidden_dim, attention_dim, gated=True, dropout=dropout)
     self.classifier = LinearClassifier(hidden_dim, 1, dropout)
+    self.proj_head  = nn.Linear(hidden_dim, proj_dim) if proj_dim else None
 
   def forward(self, data: dict) -> dict:
     patches = data['he_patches']                          # (B, N, patch_dim)
     encoded = self.encoder(patches)                       # (B, N, hidden_dim)
     bag_embeddings, attention = self.aggregator(encoded)  # (B, hidden_dim)
     logits = self.classifier(bag_embeddings)              # (B, 1)
-    return {'hidden': bag_embeddings, 'logits': logits, 'attention': attention}
+    out = {'hidden': bag_embeddings, 'logits': logits, 'attention': attention}
+    if self.proj_head is not None:
+      out['proj'] = self.proj_head(bag_embeddings)
+    return out

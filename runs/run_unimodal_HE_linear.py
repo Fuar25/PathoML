@@ -8,7 +8,7 @@ from common import (
   run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
   HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE,
-  N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD, SLIDE_BATCH_SIZE, SLIDE_LR, SLIDE_PATIENCE,
+  N_RUNS, K_FOLDS, DEVICE, EPOCHS, WD, SLIDE_BATCH_SIZE, SLIDE_LR, SLIDE_PATIENCE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
 

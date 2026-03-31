@@ -8,7 +8,7 @@ from common import (
   run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
   HE_PATCH_BASE, CD20_PATCH_BASE, CD3_PATCH_BASE,
-  N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD, MLP_HIDDEN_DIM, DROPOUT_RATE,
+  N_RUNS, K_FOLDS, DEVICE, EPOCHS, ABMIL_PATIENCE, LR, WD, MLP_HIDDEN_DIM, DROPOUT_RATE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
 
@@ -24,7 +24,7 @@ def make_config(common_keys) -> RunTimeConfig:
   config.model.model_kwargs = {"hidden_dim": MLP_HIDDEN_DIM, "dropout": DROPOUT_RATE}
   config.training.device = DEVICE
   config.training.epochs = EPOCHS
-  config.training.patience = PATIENCE
+  config.training.patience = ABMIL_PATIENCE
   config.training.learning_rate = LR
   config.training.weight_decay = WD
   return config

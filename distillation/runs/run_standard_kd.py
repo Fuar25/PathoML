@@ -33,7 +33,7 @@ from PathoML.optimization.trainer import Trainer
 
 from dataset import DistillationDataset
 from manifest import load_manifest
-from models.student import StudentABMIL
+from models.student import StudentTransABMIL
 from trainer import DistillCrossValidator
 from losses import StandardKDLoss
 
@@ -64,7 +64,10 @@ TEMPERATURE = 4.0
 CONDITION_NAME = f"distill_a{ALPHA}b{BETA}T{TEMPERATURE}"
 
 # (6) Student 架构
-STUDENT_KWARGS = dict(patch_dim=1536, hidden_dim=256, attention_dim=128, dropout=0.2)
+STUDENT_KWARGS = dict(
+  patch_dim=1536, hidden_dim=256, attention_dim=128, dropout=0.2,
+  n_transformer_layers=2, nhead=4, proj_dim=128,
+)
 
 # (7) 蒸馏训练超参（可以与 teacher 不同）
 EPOCHS   = 100
@@ -102,7 +105,7 @@ def run_once(
 ) -> tuple[list[float], list[float]]:
   """运行一次 K 折 CV，返回每折的 (patient_auc_list, patient_f1_list)。"""
   cv = DistillCrossValidator(
-    student_builder   = lambda: StudentABMIL(**STUDENT_KWARGS),
+    student_builder   = lambda: StudentTransABMIL(**STUDENT_KWARGS),
     dataset           = dataset,
     config            = config,
     distill_loss      = distill_loss,

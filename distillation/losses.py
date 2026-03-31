@@ -80,9 +80,10 @@ class StandardKDLoss(DistillationLoss):
     # (1) 任务损失
     loss = F.binary_cross_entropy_with_logits(s_logit, labels)
 
-    # (2) 特征匹配损失
+    # (2) 特征匹配损失（优先用 projection head 输出对齐 teacher）
     if self.alpha != 0:
-      loss = loss + self.alpha * F.mse_loss(s_hidden, t_hidden)
+      s_feat = s_out.get('proj', s_hidden)
+      loss = loss + self.alpha * F.mse_loss(s_feat, t_hidden)
 
     # (3) Logit KD 损失
     if self.beta != 0:
