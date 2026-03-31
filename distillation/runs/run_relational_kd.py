@@ -1,12 +1,6 @@
 """Relational KD 蒸馏实验 K折 CV 入口。
 
-蒸馏损失: L_total = L_task + alpha * L_feat + gamma * L_rkd
-消融实验：修改下方配置中的 ALPHA/GAMMA：
-  - Baseline:       alpha=0, gamma=0
-  - +L_feat:        alpha=1, gamma=0
-  - +L_rkd:         alpha=0, gamma=1
-  - Full:           alpha=1, gamma=1
-
+蒸馏损失: L_total = L_task + gamma * L_rkd
 RKD 匹配样本间的距离结构而非单个表示，不依赖表示空间对齐。
 需要 batch_size > 1。
 """
@@ -53,11 +47,10 @@ OUTPUTS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs
 LOG_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results_log.txt')
 
 # (4) 蒸馏超参
-ALPHA = 0      # L_feat 权重
-GAMMA = 0      # L_rkd 权重
+GAMMA = 1      # L_rkd 权重
 
 # (5) 实验名称
-CONDITION_NAME = f"rkd_a{ALPHA}g{GAMMA}"
+CONDITION_NAME = f"rkd_g{GAMMA}"
 
 # (6) Student 架构
 STUDENT_KWARGS = dict(
@@ -86,7 +79,7 @@ def make_config() -> tuple[RunTimeConfig, RKDLoss]:
   config.training.patience      = PATIENCE
   config.training.batch_size    = BATCH_SIZE
   config.training.device        = DEVICE
-  distill_loss = RKDLoss(alpha=ALPHA, gamma=GAMMA)
+  distill_loss = RKDLoss(gamma=GAMMA)
   return config, distill_loss
 
 
