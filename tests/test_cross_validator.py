@@ -42,3 +42,13 @@ def test_checkpoints_saved(synthetic_dataset, model_builder_fn, trainer_config, 
     if f.endswith('.pt') or f.endswith('.pth')
   ]
   assert len(checkpoint_files) > 0, "No checkpoint files found after CV"
+
+
+def test_batch_size_gt1_varlen(synthetic_varlen_dataset, model_builder_fn, trainer_config):
+  """End-to-end CV with batch_size > 1 and variable-length bags."""
+  trainer_config.training.batch_size = 4
+  result = _run_cv(synthetic_varlen_dataset, model_builder_fn, trainer_config, k_folds=2)
+  assert len(result.fold_results) == 2
+  for fold in result.fold_results:
+    assert isinstance(fold.test_loss, float)
+    assert fold.patient_auc is not None

@@ -84,6 +84,50 @@ def model_builder_fn():
 
 
 @pytest.fixture
+def synthetic_varlen_dataset():
+  """In-memory dataset with variable-length bags (N differs per sample).
+
+  Same patient/label layout as synthetic_dataset, but N is random in [3, 10].
+  Suitable for testing batch_size > 1 with ABMIL.
+  """
+  class SyntheticVarlenDataset(BaseDataset):
+    def __init__(self):
+      n_patients, samples_per = 20, 2
+      self.n_features = 32
+      self._patient_ids = [
+        f"P{i}" for i in range(n_patients) for _ in range(samples_per)
+      ]
+      self._labels = [
+        0 if i < n_patients // 2 else 1
+        for i in range(n_patients)
+        for _ in range(samples_per)
+      ]
+      self.classes = {0, 1}
+      self._rng = torch.Generator().manual_seed(0)
+
+    def __len__(self):
+      return len(self._labels)
+
+    def __getitem__(self, idx):
+      n_instances = torch.randint(3, 11, (1,), generator=self._rng).item()
+      return {
+        'features': torch.randn(n_instances, self.n_features),
+        'coords': torch.randn(n_instances, 2),
+        'label': torch.tensor(self._labels[idx], dtype=torch.float32),
+        'sample_id': f"sample_{idx}",
+        'patient_id': self._patient_ids[idx],
+      }
+
+    def get_patient_ids(self):
+      return self._patient_ids
+
+    def get_labels(self):
+      return list(self._labels)
+
+  return SyntheticVarlenDataset()
+
+
+@pytest.fixture
 def trainer_config(tmp_path):
   """Minimal RunTimeConfig for integration tests: CPU, 1 epoch, tmp checkpoint dir."""
   from PathoML.config.config import RunTimeConfig

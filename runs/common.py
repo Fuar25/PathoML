@@ -47,15 +47,14 @@ N_RUNS         = 5
 K_FOLDS        = 5
 DEVICE         = "cuda:0"
 EPOCHS         = 100
-ABMIL_PATIENCE = 10
+PATIENCE       = 30
 LR             = 1e-4
 WD             = 1e-5
 BASE_SEED      = 42
 MLP_HIDDEN_DIM     = 256
 DROPOUT_RATE       = 0.2
-SLIDE_BATCH_SIZE   = 16
+BATCH_SIZE         = 16
 SLIDE_LR           = 4e-4
-SLIDE_PATIENCE     = 30
 
 
 # ─── 路径配置 ─────────────────────────────────────────────────────────────────

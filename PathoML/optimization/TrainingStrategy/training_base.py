@@ -31,20 +31,61 @@ from ..patient_aggregation import aggregate_patient_predictions
 # ---------------------------------------------------------------------------
 
 def _variable_size_collate(batch):
-  """Collate that falls back to list for variable-size tensors."""
+  """Collate that pads variable-length tensors and creates a shared mask.
+
+  When tensors differ only along dim 0 (e.g. features (N, D) with varying N),
+  pads to max length and stores a boolean mask under 'mask'.
+  Convention: True = valid position, False = padding.
+  """
   elem = batch[0]
   result = {}
+
+  # (1) First pass: detect variable-length dim-0 tensors, compute max_len
+  #     All variable-length tensors in a WSI sample share the same N,
+  #     so one mask suffices.
+  max_len = None
+  lengths = None
+  for key in elem:
+    values = [d[key] for d in batch]
+    if torch.is_tensor(values[0]) and values[0].dim() >= 1:
+      sizes_0 = [v.shape[0] for v in values]
+      if not all(s == sizes_0[0] for s in sizes_0):
+        rest_shape = values[0].shape[1:]
+        if all(v.shape[1:] == rest_shape for v in values):
+          max_len = max(max_len or 0, max(sizes_0))
+          if lengths is None:
+            lengths = sizes_0
+
+  # (2) Second pass: collate each key
   for key in elem:
     values = [d[key] for d in batch]
     if torch.is_tensor(values[0]):
       if all(v.shape == values[0].shape for v in values):
         result[key] = torch.stack(values, 0)
+      elif max_len is not None and values[0].dim() >= 1:
+        rest_shape = values[0].shape[1:]
+        if all(v.shape[1:] == rest_shape for v in values):
+          padded = torch.zeros(len(values), max_len, *rest_shape,
+                               dtype=values[0].dtype)
+          for i, v in enumerate(values):
+            padded[i, :v.shape[0]] = v
+          result[key] = padded
+        else:
+          result[key] = values
       else:
         result[key] = values
     elif isinstance(values[0], (int, float)):
       result[key] = torch.tensor(values)
     else:
       result[key] = values
+
+  # (3) Create shared mask if padding occurred
+  if max_len is not None and lengths is not None:
+    mask = torch.zeros(len(batch), max_len, dtype=torch.bool)
+    for i, length in enumerate(lengths):
+      mask[i, :length] = True
+    result['mask'] = mask
+
   return result
 
 

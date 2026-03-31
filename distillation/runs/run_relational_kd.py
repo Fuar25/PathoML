@@ -1,23 +1,20 @@
-"""Standard KD 蒸馏实验 K折 CV 入口。
+"""Relational KD 蒸馏实验 K折 CV 入口。
 
-蒸馏损失: L_total = L_task + alpha * L_feat + beta * L_kd
-消融实验：修改下方 DISTILL 配置中的 ALPHA/BETA/TEMPERATURE：
-  - Baseline:   alpha=0, beta=0
-  - +L_feat:    alpha=1, beta=0
-  - +L_kd:      alpha=0, beta=1, temperature=4
-  - Full:       alpha=1, beta=1, temperature=4
+蒸馏损失: L_total = L_task + alpha * L_feat + gamma * L_rkd
+消融实验：修改下方配置中的 ALPHA/GAMMA：
+  - Baseline:       alpha=0, gamma=0
+  - +L_feat:        alpha=1, gamma=0
+  - +L_rkd:         alpha=0, gamma=1
+  - Full:           alpha=1, gamma=1
 
-流程:
-  (1) load_manifest — 从 teacher manifest 加载 fold 参数、模态路径、checkpoint 模板
-  (2) make_config   — 构建 RunTimeConfig 和 StandardKDLoss
-  (3) run_once      — 单次 K 折 CV
-  (4) main          — N_RUNS 次重复 + log_results
+RKD 匹配样本间的距离结构而非单个表示，不依赖表示空间对齐。
+需要 batch_size > 1。
 """
 
 import sys
 import os
 
-# (1) 路径设置：确保 distillation/ 和 PathoML 可被 import
+# (1) 路径设置
 _DISTILL_ROOT = os.path.join(os.path.dirname(__file__), '..')
 _PROJECT_ROOT = os.path.join(_DISTILL_ROOT, '..')
 sys.path.insert(0, os.path.abspath(_DISTILL_ROOT))
@@ -35,33 +32,32 @@ from dataset import DistillationDataset
 from manifest import load_manifest
 from models.student import StudentTransABMIL
 from trainer import DistillCrossValidator
-from losses import StandardKDLoss
+from losses import RKDLoss
 
 
 # =============================================================================
 # 配置区 — 修改此处
 # =============================================================================
 
-# (1) Teacher 依赖：指向 teacher manifest（自动继承 fold 参数、模态路径、ckpt 模板）
+# (1) Teacher 依赖
 TEACHER_MANIFEST = '/home/william/PycharmProjects/PathoML/runs/outputs/run_concat_HE_CD20_CD3_mlp/manifest.json'
 
-# (2) 蒸馏独有数据路径（teacher 训练不涉及 patch 级特征）
+# (2) 蒸馏独有数据路径
 PATCH_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Patch-Feature/HE'
 
-# (2.1) 自定义样本交集模态（None = 使用 manifest 全部 slide 模态）
+# (2.1) 自定义样本交集模态
 INTERSECTION_MODALITIES = ['HE', 'CD20', 'CD3']
 
 # (3) 蒸馏输出
 OUTPUTS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs')
 LOG_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results_log.txt')
 
-# (4) 蒸馏超参（消融实验修改此处）
-ALPHA       = 0      # L_feat 权重（Baseline: 0）
-BETA        = 1      # L_kd 权重（Baseline: 0）
-TEMPERATURE = 4.0
+# (4) 蒸馏超参
+ALPHA = 0      # L_feat 权重
+GAMMA = 0      # L_rkd 权重
 
 # (5) 实验名称
-CONDITION_NAME = f"distill_a{ALPHA}b{BETA}T{TEMPERATURE}"
+CONDITION_NAME = f"rkd_a{ALPHA}g{GAMMA}"
 
 # (6) Student 架构
 STUDENT_KWARGS = dict(
@@ -69,7 +65,7 @@ STUDENT_KWARGS = dict(
   n_transformer_layers=2, nhead=4, proj_dim=128,
 )
 
-# (7) 蒸馏训练超参（可以与 teacher 不同）
+# (7) 蒸馏训练超参
 EPOCHS     = 100
 PATIENCE   = 10
 LR         = 1e-4
@@ -82,30 +78,25 @@ DEVICE     = 'cuda:0'
 # 工具函数
 # =============================================================================
 
-def make_config() -> tuple[RunTimeConfig, StandardKDLoss]:
+def make_config() -> tuple[RunTimeConfig, RKDLoss]:
   config = RunTimeConfig()
-  config.training.epochs            = EPOCHS
-  config.training.learning_rate     = LR
-  config.training.weight_decay      = WD
-  config.training.patience          = PATIENCE
-  config.training.batch_size        = BATCH_SIZE
-  config.training.device            = DEVICE
-
-  distill_loss = StandardKDLoss(
-    alpha=ALPHA, beta=BETA, temperature=TEMPERATURE,
-  )
-
+  config.training.epochs        = EPOCHS
+  config.training.learning_rate = LR
+  config.training.weight_decay  = WD
+  config.training.patience      = PATIENCE
+  config.training.batch_size    = BATCH_SIZE
+  config.training.device        = DEVICE
+  distill_loss = RKDLoss(alpha=ALPHA, gamma=GAMMA)
   return config, distill_loss
 
 
 def run_once(
   dataset: DistillationDataset,
   config: RunTimeConfig,
-  distill_loss: StandardKDLoss,
+  distill_loss: RKDLoss,
   teacher_ckpt_tmpl: str,
   k_folds: int,
 ) -> tuple[list[float], list[float]]:
-  """运行一次 K 折 CV，返回每折的 (patient_auc_list, patient_f1_list)。"""
   cv = DistillCrossValidator(
     student_builder   = lambda: StudentTransABMIL(**STUDENT_KWARGS),
     dataset           = dataset,
@@ -121,10 +112,9 @@ def run_once(
 
 
 def log_results(results: dict, log_path: str, config: RunTimeConfig,
-                distill_loss: StandardKDLoss, teacher_modalities: list,
+                distill_loss: RKDLoss, teacher_modalities: list,
                 n_runs: int, k_folds: int, base_seed: int,
                 sample_intersection: list[str] | None = None) -> None:
-  """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
   sep  = "=" * 100
   hsep = "─" * 100
   lines = [
@@ -147,7 +137,6 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig,
       f"{f1_str}"
     )
 
-  # (1) 运行配置摘要
   t = config.training
   lines.append(hsep)
   if sample_intersection:
@@ -156,7 +145,8 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig,
   lines.append(f"N_RUNS={n_runs}  K_FOLDS={k_folds}  BASE_SEED={base_seed}")
   lines.append(
     f"epochs={t.epochs}  patience={t.patience}  "
-    f"lr={t.learning_rate}  wd={t.weight_decay}  device={t.device}"
+    f"lr={t.learning_rate}  wd={t.weight_decay}  "
+    f"batch_size={t.batch_size}  device={t.device}"
   )
   lines.append(f"distill_loss: {distill_loss}")
   kw_str = "  ".join(f"{k}={v}" for k, v in STUDENT_KWARGS.items())
@@ -164,7 +154,6 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig,
   lines.append(sep)
   lines.append("")
 
-  # (2) 打印到终端 + 追加写入日志文件
   print("\n" + "\n".join(lines))
   os.makedirs(os.path.dirname(log_path), exist_ok=True)
   with open(log_path, "a", encoding="utf-8") as f:
@@ -177,10 +166,8 @@ def log_results(results: dict, log_path: str, config: RunTimeConfig,
 # =============================================================================
 
 def main():
-  # (1) 从 teacher manifest 加载依赖信息（fold 参数、模态路径、ckpt 模板）
   manifest = load_manifest(TEACHER_MANIFEST)
 
-  # (2) 构建 dataset（自定义交集或从 manifest 模态路径推导）
   print('Loading dataset...')
   slide_paths = manifest.slide_modality_paths
   feat_root = os.path.dirname(next(iter(slide_paths.values())).rstrip("/"))
@@ -190,7 +177,7 @@ def main():
   else:
     intersection_bases = list(slide_paths.values())
     intersection_names = list(manifest.modality_names)
-  
+
   common_keys = find_common_sample_keys(intersection_bases)
   print(f'  公共样本数（{" ∩ ".join(intersection_names)}）: {len(common_keys)}')
   dataset = DistillationDataset(
@@ -203,10 +190,8 @@ def main():
   config, distill_loss = make_config()
   print(f'distill_loss: {distill_loss}')
 
-  run_means = []
-  all_fold_aucs = []
-  run_f1_means = []
-  all_fold_f1s = []
+  run_means, all_fold_aucs = [], []
+  run_f1_means, all_fold_f1s = [], []
 
   for i in range(manifest.n_runs):
     seed = manifest.base_seed + i
@@ -227,7 +212,6 @@ def main():
     run_f1_means.append(f1_mean)
     all_fold_f1s.extend(fold_f1s)
     fold_str = "  ".join(f"fold{j+1}={v:.4f}" for j, v in enumerate(fold_aucs))
-
     print(f"  {fold_str}  →  mean={mean:.4f}")
 
   log_results(
@@ -235,13 +219,8 @@ def main():
       "run_means": run_means, "all_fold_aucs": all_fold_aucs,
       "run_f1_means": run_f1_means, "all_fold_f1s": all_fold_f1s,
     }},
-    LOG_FILE,
-    config,
-    distill_loss,
-    manifest.modality_names,
-    manifest.n_runs,
-    manifest.k_folds,
-    manifest.base_seed,
+    LOG_FILE, config, distill_loss,
+    manifest.modality_names, manifest.n_runs, manifest.k_folds, manifest.base_seed,
     sample_intersection=intersection_names,
   )
 

@@ -40,8 +40,9 @@ class StudentBasicABMIL(nn.Module):
 
   def forward(self, data: dict) -> dict:
     patches = data['he_patches']                          # (B, N, patch_dim)
+    mask = data.get('mask')                               # (B, N) or None; True=valid
     encoded = self.encoder(patches)                       # (B, N, hidden_dim)
-    bag_embeddings, attention = self.aggregator(encoded)  # (B, hidden_dim)
+    bag_embeddings, attention = self.aggregator(encoded, mask=mask)
     logits = self.classifier(bag_embeddings)              # (B, 1)
     out = {'hidden': bag_embeddings, 'logits': logits, 'attention': attention}
     if self.proj_head is not None:

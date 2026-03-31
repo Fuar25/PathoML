@@ -92,9 +92,12 @@ class StudentTransABMIL(nn.Module):
 
   def forward(self, data: dict) -> dict:
     patches = data['he_patches']                          # (B, N, patch_dim)
+    mask = data.get('mask')                               # (B, N) or None; True=valid
     encoded = self.encoder(patches)                       # (B, N, hidden_dim)
-    encoded = self.transformer(encoded)                   # (B, N, hidden_dim)
-    bag_embeddings, attention = self.aggregator(encoded)  # (B, hidden_dim)
+    # PyTorch TransformerEncoder: src_key_padding_mask True=忽略，需取反
+    pad_mask = ~mask if mask is not None else None
+    encoded = self.transformer(encoded, src_key_padding_mask=pad_mask)
+    bag_embeddings, attention = self.aggregator(encoded, mask=mask)
     logits = self.classifier(bag_embeddings)              # (B, 1)
     out = {'hidden': bag_embeddings, 'logits': logits, 'attention': attention}
     if self.proj_head is not None:

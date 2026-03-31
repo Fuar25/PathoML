@@ -1,7 +1,8 @@
 """蒸馏损失接口与实现。
 
 DistillationLoss  — 所有蒸馏损失的抽象基类，定义统一的 forward 签名。
-StandardKDLoss    — L_task + alpha * L_feat + beta * L_kd，当前唯一实现。
+StandardKDLoss    — L_task + alpha * L_feat + beta * L_kd
+RKDLoss           — L_task + alpha * L_feat + gamma * L_rkd（关系蒸馏）
 
 扩展新方法：继承 DistillationLoss 并实现 forward 即可，无需改动 trainer。
 """
@@ -101,3 +102,63 @@ class StandardKDLoss(DistillationLoss):
       f"StandardKDLoss(alpha={self.alpha}, beta={self.beta}, "
       f"temperature={self.temperature})"
     )
+
+
+# ---------------------------------------------------------------------------
+# (3) RKDLoss — Relational Knowledge Distillation (distance-wise)
+# ---------------------------------------------------------------------------
+
+class RKDLoss(DistillationLoss):
+  """L_total = L_task + alpha * L_feat + gamma * L_rkd
+
+  - L_task: BCEWithLogitsLoss(s_logit, label)
+  - L_feat: MSELoss(s_proj, t_hidden)                         (alpha=0 禁用)
+  - L_rkd:  smooth_l1(mu_norm(cdist(s)), mu_norm(cdist(t)))   (gamma=0 禁用)
+
+  RKD 匹配样本间的距离结构而非单个表示，不依赖表示空间对齐。
+  需要 batch_size > 1；B=1 时 L_rkd 自动退化为 0。
+  """
+
+  def __init__(
+    self,
+    alpha: float = 1.0,
+    gamma: float = 1.0,
+    eps: float = 1e-6,
+  ) -> None:
+    super().__init__()
+    self.alpha = alpha
+    self.gamma = gamma
+    self.eps = eps
+
+  def forward(
+    self,
+    s_out: dict,
+    t_out: dict,
+    labels: Tensor,
+  ) -> Tensor:
+    s_logit  = s_out['logits'].squeeze(1)   # (B,)
+    t_hidden = t_out['hidden']              # (B, D_t)
+
+    # (1) 任务损失
+    loss = F.binary_cross_entropy_with_logits(s_logit, labels)
+
+    # (2) 特征匹配损失
+    if self.alpha != 0:
+      s_feat = s_out.get('proj', s_out['hidden'])
+      loss = loss + self.alpha * F.mse_loss(s_feat, t_hidden)
+
+    # (3) RKD distance-wise 关系蒸馏
+    if self.gamma != 0:
+      s_emb = s_out.get('proj', s_out['hidden'])  # (B, D)
+      t_emb = t_hidden                             # (B, D)
+      s_dist = torch.cdist(s_emb, s_emb, p=2)     # (B, B)
+      t_dist = torch.cdist(t_emb, t_emb, p=2)     # (B, B)
+      # mu-normalization
+      s_dist = s_dist / (s_dist.mean() + self.eps)
+      t_dist = t_dist / (t_dist.mean() + self.eps)
+      loss = loss + self.gamma * F.smooth_l1_loss(s_dist, t_dist)
+
+    return loss
+
+  def __repr__(self) -> str:
+    return f"RKDLoss(alpha={self.alpha}, gamma={self.gamma})"
