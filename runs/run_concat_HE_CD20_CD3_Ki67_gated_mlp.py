@@ -1,5 +1,5 @@
-# HE+CD20+CD3+Ki67 多模态 Concat MLP 超参扫描实验（GigaPath-Slide-Feature）。
-# 基线: deep MLP (num_layers=2)
+# HE+CD20+CD3+Ki67 多模态 GatedFusionMLP 超参扫描实验（GigaPath-Slide-Feature）。
+# 基线: hidden256, dropout0.2, gate_temperature=1.0
 import os
 import sys
 
@@ -8,21 +8,23 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (
   run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
-  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE, Ki67_SLIDE_BASE, LABELS_CSV,
+  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE, Ki67_SLIDE_BASE,
   N_RUNS, K_FOLDS, EPOCHS, WD, DROPOUT_RATE, BATCH_SIZE, SLIDE_LR, PATIENCE,
   OUTPUTS_DIR,
 )
 
 DEVICE = "cuda:1"
-MLP_HIDDEN_DIM = 256
-NUM_LAYERS = 2
+HIDDEN_DIM = 256
+N_MODALITIES = 4
 TUNING_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tuning_log.txt")
 
 CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 
 
-def make_config(common_keys, *, hidden_dim=MLP_HIDDEN_DIM, dropout=DROPOUT_RATE,
-                lr=SLIDE_LR, wd=WD, batch_size=BATCH_SIZE, num_layers=NUM_LAYERS) -> RunTimeConfig:
+def make_config(common_keys, *, hidden_dim=HIDDEN_DIM, dropout=DROPOUT_RATE,
+                lr=SLIDE_LR, wd=WD, batch_size=BATCH_SIZE,
+                gate_temperature=1.0, gate_hidden_dim=None,
+                num_post_layers=1) -> RunTimeConfig:
   config = RunTimeConfig()
   config.dataset.dataset_name = "MultimodalConcatSlideDataset"
   config.dataset.dataset_kwargs["modality_paths"] = {
@@ -33,9 +35,17 @@ def make_config(common_keys, *, hidden_dim=MLP_HIDDEN_DIM, dropout=DROPOUT_RATE,
   }
   config.dataset.dataset_kwargs["modality_names"] = ["HE", "CD20", "CD3", "Ki67"]
   config.dataset.dataset_kwargs["allowed_sample_keys"] = common_keys
-  config.dataset.dataset_kwargs["labels_csv"] = LABELS_CSV
-  config.model.model_name = "mlp"
-  config.model.model_kwargs = {"hidden_dim": hidden_dim, "dropout": dropout, "num_layers": num_layers}
+  config.model.model_name = "gated_fusion_mlp"
+  model_kwargs = {
+    "n_modalities": N_MODALITIES,
+    "hidden_dim": hidden_dim,
+    "dropout": dropout,
+    "gate_temperature": gate_temperature,
+    "num_post_layers": num_post_layers,
+  }
+  if gate_hidden_dim is not None:
+    model_kwargs["gate_hidden_dim"] = gate_hidden_dim
+  config.model.model_kwargs = model_kwargs
   config.training.device = DEVICE
   config.training.epochs = EPOCHS
   config.training.patience = PATIENCE
@@ -46,24 +56,22 @@ def make_config(common_keys, *, hidden_dim=MLP_HIDDEN_DIM, dropout=DROPOUT_RATE,
 
 
 # ─── 超参实验组 ──────────────────────────────────────────────────────────────
-# 基线: hidden256, dropout0.2, 2layer, bs16, lr=4e-4
-# bs 变动时 lr 按线性缩放: lr_new = SLIDE_LR * bs_new / BATCH_SIZE
 EXPERIMENTS = [
   # (1) 基线
   {"tag": "baseline"},
-  # (2) 宽度扫描（固定 2layer）
-  {"tag": "hidden128",                       "hidden_dim": 128},
-  {"tag": "hidden512",                       "hidden_dim": 512},
-  # (3) 深度扫描（固定 hidden256）
-  {"tag": "3layer",                          "num_layers": 3},
-  {"tag": "4layer",                          "num_layers": 4},
-  # (4) 宽度 × 深度组合
-  {"tag": "hidden128_3layer",                "hidden_dim": 128, "num_layers": 3},
-  {"tag": "hidden512_3layer",                "hidden_dim": 512, "num_layers": 3},
-  {"tag": "hidden128_4layer",                "hidden_dim": 128, "num_layers": 4},
-  # (5) batch_size 扫描（lr 线性缩放）
-  {"tag": "bs32",                            "batch_size": 32, "lr": SLIDE_LR * 32 / BATCH_SIZE},
-  {"tag": "bs64",                            "batch_size": 64, "lr": SLIDE_LR * 64 / BATCH_SIZE},
+  # (2) Gate temperature 扫描
+  {"tag": "temp0.5",        "gate_temperature": 0.5},
+  {"tag": "temp2.0",        "gate_temperature": 2.0},
+  # (3) Hidden dim 扫描
+  {"tag": "hidden128",      "hidden_dim": 128},
+  {"tag": "hidden512",      "hidden_dim": 512},
+  # (4) Gate hidden dim 扫描
+  {"tag": "gate_hidden64",  "gate_hidden_dim": 64},
+  {"tag": "gate_hidden512", "gate_hidden_dim": 512},
+  # (5) Post-fusion 深度
+  {"tag": "post2layer",     "num_post_layers": 2},
+  # (6) Dropout
+  {"tag": "drop0.3",        "dropout": 0.3},
 ]
 
 
