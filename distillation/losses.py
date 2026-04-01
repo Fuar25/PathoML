@@ -2,7 +2,7 @@
 
 DistillationLoss  — 所有蒸馏损失的抽象基类，定义统一的 forward 签名。
 StandardKDLoss    — L_task + alpha * L_feat + beta * L_kd
-RKDLoss           — L_task + gamma * L_rkd（关系蒸馏）
+RKDLoss           — L_task + gamma_d * L_dist + gamma_a * L_angle（关系蒸馏）
 
 扩展新方法：继承 DistillationLoss 并实现 forward 即可，无需改动 trainer。
 """
@@ -105,26 +105,59 @@ class StandardKDLoss(DistillationLoss):
 
 
 # ---------------------------------------------------------------------------
-# (3) RKDLoss — Relational Knowledge Distillation (distance-wise)
+# (3) RKDLoss — Relational Knowledge Distillation (Park et al., CVPR 2019)
+#     distance-wise (二元关系) + angle-wise (三元关系)
 # ---------------------------------------------------------------------------
 
+def _rkd_distance(s_emb: Tensor, t_emb: Tensor, eps: float = 1e-6) -> Tensor:
+  """Distance-wise RKD: 匹配样本对之间的 L2 距离结构。"""
+  s_dist = torch.cdist(s_emb, s_emb, p=2)       # (B, B)
+  t_dist = torch.cdist(t_emb, t_emb, p=2)       # (B, B)
+  # mu-normalization
+  s_dist = s_dist / (s_dist.mean() + eps)
+  t_dist = t_dist / (t_dist.mean() + eps)
+  return F.smooth_l1_loss(s_dist, t_dist)
+
+
+def _rkd_angle(s_emb: Tensor, t_emb: Tensor) -> Tensor:
+  """Angle-wise RKD: 匹配三元组 (i, j, k) 中以 j 为顶点的角度结构。
+
+  对每个中心点 j，计算所有 (i, k) 对构成的角度余弦值，
+  要求 student 和 teacher 的角度结构一致。
+  """
+  # (1) 差向量: diff[j, i] = emb[i] - emb[j]，形状 (B, B, D)
+  s_diff = s_emb.unsqueeze(0) - s_emb.unsqueeze(1)
+  t_diff = t_emb.unsqueeze(0) - t_emb.unsqueeze(1)
+  # (2) L2 归一化差向量
+  s_diff = F.normalize(s_diff, p=2, dim=2)
+  t_diff = F.normalize(t_diff, p=2, dim=2)
+  # (3) 角度余弦: angle[j, i, k] = <s_diff[j,i], s_diff[j,k]>
+  #     bmm 沿 j 维度做矩阵乘，得 (B, B, B)
+  s_angle = torch.bmm(s_diff, s_diff.transpose(1, 2)).view(-1)
+  t_angle = torch.bmm(t_diff, t_diff.transpose(1, 2)).view(-1)
+  return F.smooth_l1_loss(s_angle, t_angle)
+
+
 class RKDLoss(DistillationLoss):
-  """L_total = L_task + gamma * L_rkd
+  """L_total = L_task + gamma_d * L_dist + gamma_a * L_angle
 
-  - L_task: BCEWithLogitsLoss(s_logit, label)
-  - L_rkd:  smooth_l1(mu_norm(cdist(s)), mu_norm(cdist(t)))   (gamma=0 禁用)
+  - L_task:  BCEWithLogitsLoss(s_logit, label)
+  - L_dist:  distance-wise RKD — 匹配样本对间 L2 距离   (gamma_d=0 禁用)
+  - L_angle: angle-wise RKD — 匹配三元组角度结构         (gamma_a=0 禁用)
 
-  RKD 匹配样本间的距离结构而非单个表示，不依赖表示空间对齐。
-  需要 batch_size > 1；B=1 时 L_rkd 自动退化为 0。
+  Ref: Park et al., "Relational Knowledge Distillation", CVPR 2019.
+  需要 batch_size > 1；B=1 时两项自动退化为 0。
   """
 
   def __init__(
     self,
-    gamma: float = 1.0,
+    gamma_d: float = 1.0,
+    gamma_a: float = 2.0,
     eps: float = 1e-6,
   ) -> None:
     super().__init__()
-    self.gamma = gamma
+    self.gamma_d = gamma_d
+    self.gamma_a = gamma_a
     self.eps = eps
 
   def forward(
@@ -139,18 +172,17 @@ class RKDLoss(DistillationLoss):
     # (1) 任务损失
     loss = F.binary_cross_entropy_with_logits(s_logit, labels)
 
-    # (2) RKD distance-wise 关系蒸馏
-    if self.gamma != 0:
-      s_emb = s_out.get('proj', s_out['hidden'])  # (B, D)
-      t_emb = t_hidden                             # (B, D)
-      s_dist = torch.cdist(s_emb, s_emb, p=2)     # (B, B)
-      t_dist = torch.cdist(t_emb, t_emb, p=2)     # (B, B)
-      # mu-normalization
-      s_dist = s_dist / (s_dist.mean() + self.eps)
-      t_dist = t_dist / (t_dist.mean() + self.eps)
-      loss = loss + self.gamma * F.smooth_l1_loss(s_dist, t_dist)
+    # (2) RKD distance-wise
+    if self.gamma_d != 0:
+      s_emb = s_out.get('proj', s_out['hidden'])
+      loss = loss + self.gamma_d * _rkd_distance(s_emb, t_hidden, self.eps)
+
+    # (3) RKD angle-wise
+    if self.gamma_a != 0:
+      s_emb = s_out.get('proj', s_out['hidden'])
+      loss = loss + self.gamma_a * _rkd_angle(s_emb, t_hidden)
 
     return loss
 
   def __repr__(self) -> str:
-    return f"RKDLoss(gamma={self.gamma})"
+    return f"RKDLoss(gamma_d={self.gamma_d}, gamma_a={self.gamma_a})"
