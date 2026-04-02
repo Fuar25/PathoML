@@ -20,7 +20,7 @@ from tqdm import tqdm
 from PathoML.config.config import RunTimeConfig
 from PathoML.interfaces import BaseDataset
 from PathoML.optimization.TrainingStrategy import CrossValidator
-from PathoML.optimization.training_utils import TrainingResult
+from PathoML.optimization.training_utils import TrainingResult, move_to_device, model_inputs
 from models.teacher import TeacherMLP
 from losses import DistillationLoss
 
@@ -135,7 +135,7 @@ class DistillCrossValidator(CrossValidator):
 
     with tqdm(loader, desc="  Training", unit="batch", leave=False) as pbar:
       for raw_batch in pbar:
-        batch  = self._move_to_device(raw_batch)
+        batch  = move_to_device(raw_batch, self.device)
         labels = batch['label']
 
         # (1) Teacher 前向（无梯度）
@@ -143,7 +143,7 @@ class DistillCrossValidator(CrossValidator):
           t_out = self.teacher(batch['slide_concat'])   # (B, sum_of_dims)
 
         # (2) Student 前向
-        inputs = self._model_inputs(batch)
+        inputs = model_inputs(batch)
         s_out  = model(inputs)
 
         # (3) 蒸馏损失 + 反向传播

@@ -10,7 +10,10 @@ from torch.utils.data import DataLoader, Subset
 
 from PathoML.config.config import RunTimeConfig
 from PathoML.interfaces import BaseDataset
-from ..training_utils import TrainingResult, EarlyStopping
+from ..training_utils import (
+  TrainingResult, EarlyStopping,
+  set_seed, build_criterion, build_optimizer, build_loaders, split_train_val,
+)
 from .training_base import Strategy, TrainingMixin
 
 
@@ -69,17 +72,19 @@ class FullDatasetTrainer(Strategy, TrainingMixin):
     os.makedirs(self.logging_cfg.save_dir, exist_ok=True)
 
     # (1) Fix RNG + patient-aware 9:1 train/val split
-    self._set_seed(self.training_cfg.seed)
+    set_seed(self.training_cfg.seed)
     all_ids = np.arange(len(self.dataset))
     patient_ids = np.array(self.dataset.get_patient_ids())
-    train_ids, val_ids = self._split_train_val(all_ids, patient_ids, self.training_cfg.seed)
+    train_ids, val_ids = split_train_val(self.dataset, all_ids, patient_ids, self.training_cfg.seed)
 
-    train_loader, val_loader = self._build_loaders(train_ids, val_ids)
+    train_loader, val_loader = build_loaders(
+      self.dataset, train_ids, val_ids, training_cfg=self.training_cfg,
+    )
 
     # (2) Build model, criterion, optimizer
     model = self.model_builder().to(self.device)
-    criterion = self._build_criterion(self.num_classes)
-    optimizer = self._build_optimizer(model)
+    criterion = build_criterion(self.num_classes)
+    optimizer = build_optimizer(model, self.training_cfg)
 
     # (3) EarlyStopping manages checkpoint
     ckpt_path = os.path.join(self.logging_cfg.save_dir, 'model_training_best.pth')

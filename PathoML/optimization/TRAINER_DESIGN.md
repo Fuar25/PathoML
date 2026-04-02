@@ -21,7 +21,7 @@ Trainer
     ├── CrossValidator(Strategy, TrainingMixin)     — K-fold cross-validation
     └── FullDatasetTrainer(Strategy, TrainingMixin) — full-dataset training for deployment
 
-TrainingMixin     — shared epoch/eval logic + batch helpers  [training_base.py]
+TrainingMixin     — training loop + evaluation (4 methods)  [training_base.py]
 FoldTrainer       — runs one fold to convergence (composition, not inheritance)
 FoldResult        — fold-specific result container
 EarlyStopping     — patience-based stop signal (monitors val_auc, higher is better)
@@ -47,16 +47,30 @@ result: TrainingResult = Trainer(strategy).fit()
 
 ## 5. TrainingMixin Methods
 
+TrainingMixin retains only training loop and evaluation methods. Build/batch/math helpers are standalone functions in `training_utils.py`.
+
+**Mixin methods** (require `self.device`, `self.num_classes`, `self.training_cfg`):
+
 | Method | Notes |
 |--------|-------|
+| `_run_train_val_loop(...)` | Epoch loop with early stopping and optional cosine scheduler |
 | `_train_epoch(model, loader, criterion, optimizer)` | Returns (avg_loss, accuracy) |
-| `_evaluate_with_auc(model, loader, criterion)` | Returns (loss, acc, auc, details) always |
-| `_forward_and_decode(logits, labels, criterion)` | Handles binary and multi-class; threshold from `self.training_cfg.patient_threshold` |
+| `_evaluate_with_auc(model, loader, criterion)` | Returns (loss, acc, auc, details) |
 | `_compute_patient_metrics(eval_details)` | Returns (patient_acc, patient_auc, patient_f1) |
-| `_compute_auc(labels, probs)` | Handles both AUC types; returns nan on failure |
-| `_build_criterion(num_classes)` | BCE for binary, CrossEntropy for multi-class |
-| `_move_to_device(batch)` | Moves tensor values to `self.device`; override for custom layouts |
-| `_model_inputs(batch)` | Strips label/ID/path keys; override for custom layouts |
+
+**Standalone functions** in `training_utils.py`:
+
+| Function | Notes |
+|----------|-------|
+| `set_seed(seed)` | Fix torch/CUDA RNG |
+| `build_criterion(num_classes)` | BCE for binary, CrossEntropy for multi-class |
+| `build_optimizer(model, training_cfg)` | Adam from config hyperparameters |
+| `build_loaders(dataset, train_ids, val_ids, test_ids, training_cfg)` | DataLoaders with variable-size collate |
+| `split_train_val(dataset, indices, patient_ids, seed)` | Patient-level stratified 9:1 split |
+| `move_to_device(batch, device)` | Move tensor values in batch dict |
+| `model_inputs(batch)` | Strip non-model keys (labels, IDs, paths) |
+| `forward_and_decode(logits, labels, criterion, num_classes, threshold)` | Binary/multi-class loss+prob+pred |
+| `compute_auc(labels, probs, num_classes)` | AUC; returns nan on failure |
 
 **Subclass requirements**: must set `self.device`, `self.num_classes`, `self.training_cfg` in `__init__`.
 
@@ -81,7 +95,7 @@ After all folds complete, `_save_cv_predictions(all_test_details)` concatenates 
 - `execute()` takes no arguments: all dependencies are stored in `__init__`, making strategies self-contained and testable.
 - `device` is resolved from `config.training.device` in `__init__`, not passed separately.
 - `StratifiedGroupKFold` is used so folds are class-balanced while respecting patient-level grouping.
-- `_move_to_device` and `_model_inputs` live in `TrainingMixin`; override in subclass for non-standard batch layouts.
+- `move_to_device` and `model_inputs` are standalone functions in `training_utils.py`.
 - Binary threshold is `self.training_cfg.patient_threshold`; no hardcoded class variable.
 - `FoldResult` and `FoldTrainer` live in `cross_validator.py` (fold-specific concepts).
 - Early stopping monitors `val_auc` (higher is better), not `val_loss`.

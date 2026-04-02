@@ -3,7 +3,7 @@
 import torch
 from torch.utils.data import DataLoader
 
-from PathoML.optimization.TrainingStrategy.training_base import _variable_size_collate
+from PathoML.dataset.utils import _variable_size_collate
 
 
 def test_dataset_len_and_item_shapes(synthetic_dataset):

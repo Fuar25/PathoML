@@ -1,16 +1,18 @@
-"""Training utilities: result containers and utility classes (non-fold-specific)."""
+"""Training utilities: result containers, helper functions, and utility classes."""
 
 import os
 from collections import Counter
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import warnings
 
 import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold, StratifiedKFold
+from torch.utils.data import DataLoader, Subset
 
 
 # ---------------------------------------------------------------------------
@@ -131,3 +133,120 @@ def stratified_patient_split(
     splits.append((slide_a, slide_b))
 
   return splits
+
+
+# ---------------------------------------------------------------------------
+# (4) Extracted helpers — formerly TrainingMixin methods
+# ---------------------------------------------------------------------------
+
+def set_seed(seed: int) -> None:
+  """Fix torch and CUDA RNG for reproducible weight init and dropout."""
+  torch.manual_seed(seed)
+  torch.cuda.manual_seed_all(seed)
+
+
+def build_criterion(num_classes: int) -> nn.Module:
+  return nn.BCEWithLogitsLoss() if num_classes == 1 else nn.CrossEntropyLoss()
+
+
+def build_optimizer(model: nn.Module, training_cfg) -> torch.optim.Optimizer:
+  """Build Adam optimizer from training_cfg hyperparameters."""
+  return torch.optim.Adam(
+    model.parameters(),
+    lr=training_cfg.learning_rate,
+    weight_decay=training_cfg.weight_decay,
+  )
+
+
+def build_loaders(
+  dataset,
+  train_ids: np.ndarray,
+  val_ids: np.ndarray,
+  test_ids: Optional[np.ndarray] = None,
+  training_cfg=None,
+):
+  """Build DataLoaders from index arrays.
+
+  Returns (train_loader, val_loader) or (train_loader, val_loader, test_loader).
+  """
+  from PathoML.dataset.utils import _variable_size_collate
+
+  bs = training_cfg.batch_size
+  collate = _variable_size_collate if bs > 1 else None
+  train_loader = DataLoader(Subset(dataset, train_ids), batch_size=bs, shuffle=True,  collate_fn=collate)
+  val_loader   = DataLoader(Subset(dataset, val_ids),   batch_size=bs, shuffle=False, collate_fn=collate)
+  if test_ids is not None:
+    test_loader = DataLoader(Subset(dataset, test_ids), batch_size=bs, shuffle=False, collate_fn=collate)
+    return train_loader, val_loader, test_loader
+  return train_loader, val_loader
+
+
+def split_train_val(
+  dataset, indices: np.ndarray, patient_ids: np.ndarray, seed: int
+) -> Tuple[np.ndarray, np.ndarray]:
+  """Patient-level stratified 9:1 train/val split.
+
+  Uses stratified_patient_split with n_splits=10, takes first fold as val.
+  """
+  all_labels = np.array(dataset.get_labels())
+  labels = all_labels[indices]
+  splits = stratified_patient_split(indices, patient_ids, labels, n_splits=10, seed=seed)
+  return splits[0]
+
+
+def move_to_device(batch: Dict[str, Any], device: torch.device) -> Dict[str, Any]:
+  """Move all tensor values in a batch dict to device."""
+  out = {}
+  for k, v in batch.items():
+    if torch.is_tensor(v):
+      out[k] = v.to(device)
+    elif isinstance(v, list) and v and torch.is_tensor(v[0]):
+      out[k] = [t.to(device) for t in v]
+    else:
+      out[k] = v
+  return out
+
+
+_MODEL_INPUT_EXCLUDE = {'label', 'slide_id', 'patient_id', 'feature_path', 'tissue_id', 'modalities'}
+
+def model_inputs(batch: Dict[str, Any]) -> Dict[str, Any]:
+  """Strip non-model keys from batch dict (labels, IDs, paths)."""
+  return {k: v for k, v in batch.items() if k not in _MODEL_INPUT_EXCLUDE}
+
+
+def forward_and_decode(
+  logits: torch.Tensor,
+  labels: torch.Tensor,
+  criterion: nn.Module,
+  num_classes: int,
+  threshold: float,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+  """Unify binary vs multi-class loss + prob + pred computation.
+
+  Returns (loss, probs, preds).
+  """
+  if num_classes == 1:
+    logits = logits.view(-1)
+    labels = labels.view(-1).float()
+    loss = criterion(logits, labels)
+    probs = torch.sigmoid(logits)
+    preds = (probs > threshold).float()
+  else:
+    loss = criterion(logits, labels.long())
+    probs = torch.softmax(logits, dim=1)
+    preds = torch.argmax(probs, dim=1)
+  return loss, probs, preds
+
+
+def compute_auc(labels_np: np.ndarray, probs_np: np.ndarray, num_classes: int) -> float:
+  """Compute AUC, returning nan on failure (e.g. single-class batch)."""
+  try:
+    if num_classes == 1:
+      return roc_auc_score(labels_np.astype(int), probs_np)
+    return roc_auc_score(
+      labels_np.astype(int), probs_np,
+      multi_class='ovr', average='macro',
+    )
+  except Exception as e:
+    print(f"Warning: AUC computation failed: {e}")
+    return float('nan')
