@@ -10,9 +10,9 @@ from PathoML.optimization.patient_aggregation import aggregate_patient_predictio
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _binary(sample_ids, patient_ids, probs, labels, threshold=0.5):
+def _binary(slide_ids, patient_ids, probs, labels, threshold=0.5):
   return aggregate_patient_predictions(
-    sample_ids, patient_ids,
+    slide_ids, patient_ids,
     np.array(probs, dtype=float),
     np.array(labels, dtype=int),
     num_classes=1,
@@ -29,14 +29,14 @@ def test_binary_single_patient_positive():
   sample_df, patient_df = _binary(
     ["P1-A", "P1-B"], ["P1", "P1"], [0.3, 0.8], [1, 1]
   )
-  assert patient_df.loc[0, 'prediction'] == 1
+  assert patient_df.loc[0, 'patient_pred'] == 1
 
 
 def test_binary_single_patient_negative():
   sample_df, patient_df = _binary(
     ["P1-A", "P1-B"], ["P1", "P1"], [0.2, 0.3], [0, 0]
   )
-  assert patient_df.loc[0, 'prediction'] == 0
+  assert patient_df.loc[0, 'patient_pred'] == 0
 
 
 def test_binary_multiple_patients():
@@ -48,8 +48,8 @@ def test_binary_multiple_patients():
     [0, 1, 1],
   )
   by_patient = patient_df.set_index('patient_id')
-  assert by_patient.loc['P1', 'prediction'] == 0
-  assert by_patient.loc['P2', 'prediction'] == 1
+  assert by_patient.loc['P1', 'patient_pred'] == 0
+  assert by_patient.loc['P2', 'patient_pred'] == 1
 
 
 def test_binary_patient_prob_is_max():
@@ -60,7 +60,7 @@ def test_binary_patient_prob_is_max():
     [0.2, 0.6, 0.4],
     [1, 1, 1],
   )
-  assert patient_df.loc[0, 'prob_positive'] == pytest.approx(0.6)
+  assert patient_df.loc[0, 'patient_prob'] == pytest.approx(0.6)
 
 
 def test_threshold_boundary():
@@ -68,18 +68,18 @@ def test_threshold_boundary():
   sample_df, patient_df = _binary(
     ["P1-A"], ["P1"], [0.5], [1], threshold=0.5
   )
-  assert patient_df.loc[0, 'prediction'] == 0
+  assert patient_df.loc[0, 'patient_pred'] == 0
 
 
 def test_sample_results_columns():
   sample_df, _ = _binary(["P1-A"], ["P1"], [0.7], [1])
-  for col in ['sample_id', 'patient_id', 'label', 'prob_positive', 'prediction']:
+  for col in ['slide_id', 'patient_id', 'slide_label', 'slide_prob', 'slide_pred']:
     assert col in sample_df.columns
 
 
 def test_patient_results_columns():
   _, patient_df = _binary(["P1-A"], ["P1"], [0.7], [1])
-  for col in ['patient_id', 'prob_positive', 'prediction', 'label']:
+  for col in ['patient_id', 'patient_prob', 'patient_pred', 'patient_label']:
     assert col in patient_df.columns
 
 
@@ -103,7 +103,7 @@ def test_multiclass_aggregation():
     probs, labels,
     num_classes=3,
   )
-  assert patient_df.loc[0, 'prediction'] == 2
+  assert patient_df.loc[0, 'patient_pred'] == 2
 
 
 def test_multiclass_patient_results_columns():
@@ -113,5 +113,6 @@ def test_multiclass_patient_results_columns():
     ["P1-A", "P1-B"], ["P1", "P1"],
     probs, labels, num_classes=3,
   )
-  for col in ['patient_id', 'prediction', 'label', 'prob_class_0', 'prob_class_1', 'prob_class_2']:
+  for col in ['patient_id', 'patient_pred', 'patient_label',
+              'patient_prob_class_0', 'patient_prob_class_1', 'patient_prob_class_2']:
     assert col in patient_df.columns

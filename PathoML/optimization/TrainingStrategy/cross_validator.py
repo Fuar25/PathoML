@@ -14,7 +14,10 @@ from tqdm import tqdm
 
 from PathoML.config.config import RunTimeConfig, TrainingConfig
 from PathoML.interfaces import BaseDataset
-from ..training_utils import TrainingResult, EarlyStopping, stratified_patient_split
+from ..training_utils import (
+  TrainingResult, EarlyStopping, stratified_patient_split,
+  set_seed, build_criterion, build_optimizer, build_loaders, split_train_val,
+)
 from ..patient_aggregation import aggregate_patient_predictions
 from .training_base import TrainingMixin, Strategy
 
@@ -142,18 +145,20 @@ class CrossValidator(Strategy, TrainingMixin):
     """
     # (1) Fix RNG + patient-aware train/val split (both use seed + fold)
     fold_seed = self.training_cfg.seed + fold
-    self._set_seed(fold_seed)
-    train_ids, val_ids = self._split_train_val(
-      train_val_ids, patient_ids[train_val_ids], seed=fold_seed
+    set_seed(fold_seed)
+    train_ids, val_ids = split_train_val(
+      self.dataset, train_val_ids, patient_ids[train_val_ids], seed=fold_seed,
     )
 
     # (2) Build DataLoaders
-    train_loader, val_loader, test_loader = self._build_loaders(train_ids, val_ids, test_ids)
+    train_loader, val_loader, test_loader = build_loaders(
+      self.dataset, train_ids, val_ids, test_ids, self.training_cfg,
+    )
 
     # (3) Initialize model, criterion, optimizer
     model = self.model_builder().to(self.device)
-    criterion = self._build_criterion(self.num_classes)
-    optimizer = self._build_optimizer(model)
+    criterion = build_criterion(self.num_classes)
+    optimizer = build_optimizer(model, self.training_cfg)
 
     # (4) EarlyStopping manages checkpoint internally
     ckpt_path = os.path.join(self.logging_cfg.save_dir, f'model_fold_{fold}_best.pth')
@@ -231,34 +236,8 @@ class CrossValidator(Strategy, TrainingMixin):
       threshold=self.training_cfg.patient_threshold,
     )
 
-    # (3) Rename columns and merge slide + patient level
-    if self.num_classes == 1:
-      slide_df = sample_results.rename(columns={
-        'label': 'slide_label',
-        'prob_positive': 'slide_prob',
-        'prediction': 'slide_pred',
-      })
-      patient_df = patient_results.rename(columns={
-        'label': 'patient_label',
-        'prob_positive': 'patient_prob',
-        'prediction': 'patient_pred',
-      })[['patient_id', 'patient_label', 'patient_prob', 'patient_pred']]
-    else:
-      prob_cols = [c for c in sample_results.columns if c.startswith('prob_class_')]
-      slide_rename = {'label': 'slide_label', 'prediction': 'slide_pred'}
-      slide_rename.update({c: f'slide_{c}' for c in prob_cols})
-      slide_df = sample_results.rename(columns=slide_rename)
-
-      pat_prob_cols = [c for c in patient_results.columns if c.startswith('prob_class_')]
-      pat_rename = {'label': 'patient_label', 'prediction': 'patient_pred'}
-      pat_rename.update({c: f'patient_{c}' for c in pat_prob_cols})
-      patient_df = patient_results.rename(columns=pat_rename)
-      patient_df = patient_df[
-        ['patient_id', 'patient_label', 'patient_pred']
-        + [f'patient_{c}' for c in pat_prob_cols]
-      ]
-
-    df = slide_df.merge(patient_df, on='patient_id', how='left')
+    # (3) Merge slide + patient level
+    df = sample_results.merge(patient_results, on='patient_id', how='left')
 
     # (4) Save
     save_path = os.path.join(self.logging_cfg.save_dir, 'cv_predictions.csv')

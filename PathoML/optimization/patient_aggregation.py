@@ -40,7 +40,7 @@ def aggregate_patient_predictions(
   Returns:
       (sample_results, patient_results):
           - sample_results: Tissue-level DataFrame with slide_id, patient_id,
-                            prediction, prob_positive (or prob_class_*), label.
+                            slide_pred, slide_prob (or slide_prob_class_*), slide_label.
           - patient_results: Patient-level aggregated DataFrame.
   """
   # (1) Build tissue-level results
@@ -69,16 +69,16 @@ def _build_sample_results(
   results = {
     'slide_id': slide_ids,
     'patient_id': patient_ids,
-    'label': labels.astype(int),
+    'slide_label': labels.astype(int),
   }
 
   if num_classes == 1:
-    results['prob_positive'] = probs
-    results['prediction'] = (probs > threshold).astype(int)
+    results['slide_prob'] = probs
+    results['slide_pred'] = (probs > threshold).astype(int)
   else:
     for i in range(probs.shape[1]):
-      results[f'prob_class_{i}'] = probs[:, i]
-    results['prediction'] = probs.argmax(axis=1)
+      results[f'slide_prob_class_{i}'] = probs[:, i]
+    results['slide_pred'] = probs.argmax(axis=1)
 
   return pd.DataFrame(results)
 
@@ -88,15 +88,15 @@ def _aggregate_binary(sample_results: pd.DataFrame, threshold: float) -> pd.Data
   patient_results = []
 
   for patient_id, group in sample_results.groupby('patient_id'):
-    patient_prob = group['prob_positive'].max()  # standard MIL: take max
+    patient_prob = group['slide_prob'].max()       # standard MIL: take max
     patient_pred = int(patient_prob > threshold)
-    patient_label = int(group['label'].max())    # MIL label: positive if any tissue positive
+    patient_label = int(group['slide_label'].max())  # MIL label: positive if any tissue positive
 
     patient_results.append({
       'patient_id': patient_id,
-      'prob_positive': patient_prob,
-      'prediction': patient_pred,
-      'label': patient_label,
+      'patient_prob': patient_prob,
+      'patient_pred': patient_pred,
+      'patient_label': patient_label,
     })
 
   return pd.DataFrame(patient_results)
@@ -105,18 +105,21 @@ def _aggregate_binary(sample_results: pd.DataFrame, threshold: float) -> pd.Data
 def _aggregate_multiclass(sample_results: pd.DataFrame) -> pd.DataFrame:
   """Multi-class patient-level aggregation: per-class max then argmax."""
   patient_results = []
-  prob_cols = [c for c in sample_results.columns if c.startswith('prob_class_')]
+  slide_prob_cols = [c for c in sample_results.columns if c.startswith('slide_prob_class_')]
 
   for patient_id, group in sample_results.groupby('patient_id'):
-    patient_probs = group[prob_cols].max().to_dict()
+    slide_maxes = group[slide_prob_cols].max()
     patient_pred = max(
-      range(len(prob_cols)),
-      key=lambda i: patient_probs[f'prob_class_{i}']
+      range(len(slide_prob_cols)),
+      key=lambda i: slide_maxes[f'slide_prob_class_{i}']
     )
-    patient_label = int(group['label'].iloc[0])
+    patient_label = int(group['slide_label'].iloc[0])
 
-    result = {'patient_id': patient_id, 'prediction': patient_pred, 'label': patient_label}
-    result.update(patient_probs)
+    result = {'patient_id': patient_id, 'patient_pred': patient_pred, 'patient_label': patient_label}
+    result.update({
+      c.replace('slide_', 'patient_'): v
+      for c, v in slide_maxes.items()
+    })
     patient_results.append(result)
 
   return pd.DataFrame(patient_results)

@@ -6,7 +6,57 @@ import os
 import re
 from typing import Dict, List, Optional, Set, Tuple
 
+import torch
+
 from ..config.defaults import PATIENT_ID_PATTERN
+
+
+# ---------------------------------------------------------------------------
+# (0) Collate helper — handles variable-length tensors (e.g. coords)
+# ---------------------------------------------------------------------------
+
+def _variable_size_collate(batch):
+  """Collate that pads variable-length dim-0 tensors and creates a shared mask.
+
+  Convention: mask True = valid, False = padding.
+  Assumption: all variable-length tensors in a sample share the same N.
+  """
+  # (1) Transpose: List[Dict] → Dict[List], then collate each key
+  grouped = {key: [d[key] for d in batch] for key in batch[0]}
+
+  result = {}
+  lengths = None
+  for key, values in grouped.items():
+    # (1.1) Non-tensor (e.g. slide_id strings) → keep as list
+    if not torch.is_tensor(values[0]):
+      result[key] = values
+    # (1.2) Uniform shape → stack
+    elif all(v.shape == values[0].shape for v in values):
+      result[key] = torch.stack(values)
+    # (1.3) Variable dim-0, same rest → pad
+    elif (values[0].dim() >= 1
+          and all(v.shape[1:] == values[0].shape[1:] for v in values)):
+      sizes = [v.shape[0] for v in values]
+      max_n = max(sizes)
+      rest_shape = values[0].shape[1:]
+      padded = torch.zeros(len(values), max_n, *rest_shape, dtype=values[0].dtype)
+      for i, v in enumerate(values):
+        padded[i, :v.shape[0]] = v
+      result[key] = padded
+      if lengths is None:
+        lengths = sizes
+    # (1.4) Fallback → keep as list
+    else:
+      result[key] = values
+
+  # (2) Shared mask
+  if lengths is not None:
+    max_n = max(lengths)
+    mask = torch.zeros(len(batch), max_n, dtype=torch.bool)
+    for i, n in enumerate(lengths):
+      mask[i, :n] = True
+    result['mask'] = mask
+  return result
 
 
 def _extract_patient_tissue_id(
