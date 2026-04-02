@@ -24,10 +24,17 @@ from PathoML.optimization.trainer import CrossValidator, Trainer
 
 # ─── 数据路径 ────────────────────────────────────────────────────────────────
 
-_FLAT_ROOT = "/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Flat"
-LABELS_CSV = f"{_FLAT_ROOT}/labels.csv"
+# 优先读环境变量，否则按候选路径自动探测
+_FEAT_ROOT_CANDIDATES = [
+  "/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Flat",  # 主服务器
+  "/home/sbh/Features",                                       # 备用机器
+]
+_FEAT_ROOT = os.environ.get("PATHOML_FEAT_ROOT") or next(
+  (p for p in _FEAT_ROOT_CANDIDATES if os.path.isdir(p)), _FEAT_ROOT_CANDIDATES[0]
+)
+LABELS_CSV = f"{_FEAT_ROOT}/labels.csv"
 
-_SLIDE_FEAT_ROOT = f"{_FLAT_ROOT}/GigaPath-Slide-Feature"
+_SLIDE_FEAT_ROOT = f"{_FEAT_ROOT}/GigaPath-Slide-Feature"
 HE_SLIDE_BASE    = f"{_SLIDE_FEAT_ROOT}/HE"
 CD20_SLIDE_BASE  = f"{_SLIDE_FEAT_ROOT}/CD20"
 CD21_SLIDE_BASE  = f"{_SLIDE_FEAT_ROOT}/CD21"
@@ -35,7 +42,7 @@ Ki67_SLIDE_BASE  = f"{_SLIDE_FEAT_ROOT}/Ki-67"
 CKpan_SLIDE_BASE = f"{_SLIDE_FEAT_ROOT}/CK-pan"
 CD3_SLIDE_BASE   = f"{_SLIDE_FEAT_ROOT}/CD3"
 
-_PATCH_FEAT_ROOT = f"{_FLAT_ROOT}/GigaPath-Patch-Feature"
+_PATCH_FEAT_ROOT = f"{_FEAT_ROOT}/GigaPath-Patch-Feature"
 HE_PATCH_BASE    = f"{_PATCH_FEAT_ROOT}/HE"
 CD20_PATCH_BASE  = f"{_PATCH_FEAT_ROOT}/CD20"
 CD21_PATCH_BASE  = f"{_PATCH_FEAT_ROOT}/CD21"
