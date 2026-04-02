@@ -14,7 +14,7 @@ Defined in `PathoML.optimization.interfaces.BaseDataset`. Every dataset must imp
 - `features` — `(1, D)` for Slide; `(N, D)` for Patch
 - `coords` — `(1, 2)` or `(N, 2)`
 - `label` — scalar tensor (float for binary, long for multi-class)
-- `sample_id` — str (filename without `.h5`); must use `sample_id` (not `slide_id`) so `_evaluate_with_auc` picks it up correctly
+- `slide_id` — str (filename without `.h5`)
 - `patient_id` — str
 - `tissue_id` — str (single alphanumeric character)
 
@@ -71,7 +71,7 @@ dataset = UnimodalPatchDataset(data_path="/data/root")
 
 ## Decided
 - **Sample ordering invariant**: Every dataset implementation MUST sort `self.samples` by `(patient_id, tissue_id)` after scanning. `StratifiedGroupKFold` is order-sensitive — different orderings with the same seed produce different fold splits, making cross-experiment AUC comparison meaningless. All existing implementations comply: `_MultimodalSlideBase._build_samples` uses `sorted(all_full_keys)`, `UnimodalSlideDataset._scan_files` sorts at the end, and external datasets (e.g. `DistillationDataset`) must do the same.
-- **`sample_id` key**: Use `sample_id` (not `slide_id`) in `__getitem__`. `TrainingMixin._evaluate_with_auc` reads `batch.get('sample_id', ...)` to populate CSV predictions; using any other key silently fills the CSV with `'unknown'`.
+- **`slide_id` key**: All datasets use `slide_id` in `__getitem__` and internal data structures. `TrainingMixin._evaluate_with_auc` reads `batch.get('slide_id')` to populate CSV predictions.
 - Multimodal datasets (Concat/Fusion/BimodalConcatInteract) are Slide-level only.
 - `BimodalConcatInteractSlideDataset` requires exactly 2 modalities with equal feature dim.
 - All modalities are treated symmetrically in multimodal datasets — no anchor modality.

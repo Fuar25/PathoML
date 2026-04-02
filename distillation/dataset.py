@@ -149,11 +149,11 @@ class DistillationDataset(BaseDataset):
       if any(key not in slide_maps[stain] for stain in self.slide_modalities):
         continue
       slide_paths = {stain: slide_maps[stain][key][1] for stain in self.slide_modalities}
-      sample_id = os.path.splitext(os.path.basename(patch_path))[0]
+      slide_id = os.path.splitext(os.path.basename(patch_path))[0]
       self.samples.append({
         'patient_id':   patient_id,
         'tissue_id':    tissue_id,
-        'sample_id':    sample_id,
+        'slide_id':     slide_id,
         'label':        self.class_to_label[class_name],
         'patch_path':   patch_path,
         'slide_paths':  slide_paths,
@@ -177,7 +177,7 @@ class DistillationDataset(BaseDataset):
       'label':        torch.tensor(s['label'], dtype=torch.float32),
       'patient_id':   s['patient_id'],
       'tissue_id':    s['tissue_id'],
-      'sample_id':    s['sample_id'],
+      'slide_id':     s['slide_id'],
     }
 
   def get_patient_ids(self) -> List[str]:

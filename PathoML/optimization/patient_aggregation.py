@@ -12,7 +12,7 @@ import pandas as pd
 
 
 def aggregate_patient_predictions(
-  sample_ids: List[str],
+  slide_ids: List[str],
   patient_ids: List[str],
   probs: np.ndarray,
   labels: np.ndarray,
@@ -30,7 +30,7 @@ def aggregate_patient_predictions(
     patient_pred = argmax(patient_probs)
 
   Args:
-      sample_ids: Tissue-level sample ID list (length N).
+      slide_ids: Tissue-level sample ID list (length N).
       patient_ids: Corresponding patient ID list (length N).
       probs: Tissue-level predicted probabilities, shape (N,) for binary or (N,C) for multi-class.
       labels: Tissue-level ground-truth labels, shape (N,).
@@ -39,13 +39,13 @@ def aggregate_patient_predictions(
 
   Returns:
       (sample_results, patient_results):
-          - sample_results: Tissue-level DataFrame with sample_id, patient_id,
+          - sample_results: Tissue-level DataFrame with slide_id, patient_id,
                             prediction, prob_positive (or prob_class_*), label.
           - patient_results: Patient-level aggregated DataFrame.
   """
   # (1) Build tissue-level results
   sample_results = _build_sample_results(
-    sample_ids, patient_ids, probs, labels, num_classes, threshold
+    slide_ids, patient_ids, probs, labels, num_classes, threshold
   )
 
   # (2) Aggregate to patient level
@@ -58,7 +58,7 @@ def aggregate_patient_predictions(
 
 
 def _build_sample_results(
-  sample_ids: List[str],
+  slide_ids: List[str],
   patient_ids: List[str],
   probs: np.ndarray,
   labels: np.ndarray,
@@ -67,7 +67,7 @@ def _build_sample_results(
 ) -> pd.DataFrame:
   """Build tissue-level prediction results DataFrame."""
   results = {
-    'sample_id': sample_ids,
+    'slide_id': slide_ids,
     'patient_id': patient_ids,
     'label': labels.astype(int),
   }

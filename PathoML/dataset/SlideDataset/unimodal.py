@@ -68,7 +68,7 @@ class _UnimodalSlideBase(BaseDataset):
       if cls_name is None:
         continue
       self.samples.append({
-        'sample_id':     filename.replace('.h5', ''),
+        'slide_id':      filename.replace('.h5', ''),
         'patient_id':    patient_id,
         'tissue_id':     tissue_id,
         '_feature_path': os.path.join(self.data_path, filename),
@@ -103,7 +103,7 @@ class _UnimodalSlideBase(BaseDataset):
       'features':   features,
       'coords':     coords,
       'label':      label_tensor,
-      'sample_id':  item['sample_id'],
+      'slide_id':   item['slide_id'],
       'patient_id': item['patient_id'],
       'tissue_id':  item['tissue_id'],
     }

@@ -117,7 +117,7 @@ class TrainingMixin:
   @staticmethod
   def _model_inputs(batch: Dict[str, Any]) -> Dict[str, Any]:
     """Strip non-model keys from batch dict (labels, IDs, paths)."""
-    _exclude = {'label', 'sample_id', 'patient_id', 'feature_path', 'tissue_id', 'modalities'}
+    _exclude = {'label', 'slide_id', 'patient_id', 'feature_path', 'tissue_id', 'modalities'}
     return {k: v for k, v in batch.items() if k not in _exclude}
 
   # -- Build helpers --
@@ -252,21 +252,21 @@ class TrainingMixin:
   ) -> Tuple[float, float, float, Dict[str, Any]]:
     """Evaluate model on a loader. Returns (loss, acc, auc, details).
 
-    details dict contains sample_ids, patient_ids, probs, labels — used for
+    details dict contains slide_ids, patient_ids, probs, labels — used for
     patient-level aggregation.
     """
     model.eval()
     total_loss, correct, total = 0.0, 0, 0
     all_labels, all_probs = [], []
-    all_sample_ids, all_patient_ids = [], []
+    all_slide_ids, all_patient_ids = [], []
 
     with torch.no_grad():
       for raw_batch in loader:
         batch = self._move_to_device(raw_batch)
         inputs = self._model_inputs(batch)
         labels = batch['label']
-        sample_ids = batch.get('sample_id', ['unknown'] * len(labels))
-        patient_ids_b = batch.get('patient_id', sample_ids)
+        slide_ids = batch.get('slide_id', ['unknown'] * len(labels))
+        patient_ids_b = batch.get('patient_id', slide_ids)
 
         logits = model(inputs)['logits']
         loss, probs, preds = self._forward_and_decode(logits, labels, criterion)
@@ -277,7 +277,7 @@ class TrainingMixin:
         total += bs
         all_labels.extend(labels.cpu().numpy())
         all_probs.extend(probs.cpu().numpy())
-        all_sample_ids.extend(sample_ids)
+        all_slide_ids.extend(slide_ids)
         all_patient_ids.extend(patient_ids_b)
 
     labels_np = np.array(all_labels)
@@ -285,7 +285,7 @@ class TrainingMixin:
     auc = self._compute_auc(labels_np, probs_np)
 
     details = {
-      'sample_ids': all_sample_ids,
+      'slide_ids': all_slide_ids,
       'patient_ids': all_patient_ids,
       'probs': probs_np,
       'labels': labels_np,
@@ -333,7 +333,7 @@ class TrainingMixin:
   ) -> Tuple[float, float, float]:
     """Compute patient-level accuracy, AUC, and F1 from in-memory eval predictions."""
     _, patient_results = aggregate_patient_predictions(
-      sample_ids=eval_details['sample_ids'],
+      slide_ids=eval_details['slide_ids'],
       patient_ids=eval_details['patient_ids'],
       probs=eval_details['probs'],
       labels=eval_details['labels'],

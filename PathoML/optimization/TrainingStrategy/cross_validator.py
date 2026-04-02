@@ -210,10 +210,10 @@ class CrossValidator(Strategy, TrainingMixin):
     Multi-class expands _prob columns to slide_prob_class_*, patient_prob_class_*.
     """
     # (1) Concatenate all fold details
-    all_sample_ids, all_patient_ids = [], []
+    all_slide_ids, all_patient_ids = [], []
     all_probs_list, all_labels_list = [], []
     for d in all_test_details:
-      all_sample_ids.extend(d['sample_ids'])
+      all_slide_ids.extend(d['slide_ids'])
       all_patient_ids.extend(d['patient_ids'])
       all_probs_list.append(d['probs'])
       all_labels_list.append(d['labels'])
@@ -223,7 +223,7 @@ class CrossValidator(Strategy, TrainingMixin):
 
     # (2) Aggregate to patient level
     sample_results, patient_results = aggregate_patient_predictions(
-      sample_ids=all_sample_ids,
+      slide_ids=all_slide_ids,
       patient_ids=all_patient_ids,
       probs=combined_probs,
       labels=combined_labels,
@@ -234,7 +234,6 @@ class CrossValidator(Strategy, TrainingMixin):
     # (3) Rename columns and merge slide + patient level
     if self.num_classes == 1:
       slide_df = sample_results.rename(columns={
-        'sample_id': 'slide_id',
         'label': 'slide_label',
         'prob_positive': 'slide_prob',
         'prediction': 'slide_pred',
@@ -246,7 +245,7 @@ class CrossValidator(Strategy, TrainingMixin):
       })[['patient_id', 'patient_label', 'patient_prob', 'patient_pred']]
     else:
       prob_cols = [c for c in sample_results.columns if c.startswith('prob_class_')]
-      slide_rename = {'sample_id': 'slide_id', 'label': 'slide_label', 'prediction': 'slide_pred'}
+      slide_rename = {'label': 'slide_label', 'prediction': 'slide_pred'}
       slide_rename.update({c: f'slide_{c}' for c in prob_cols})
       slide_df = sample_results.rename(columns=slide_rename)
 
