@@ -117,7 +117,7 @@ class TrainingMixin:
   @staticmethod
   def _model_inputs(batch: Dict[str, Any]) -> Dict[str, Any]:
     """Strip non-model keys from batch dict (labels, IDs, paths)."""
-    _exclude = {'label', 'sample_id', 'patient_id', 'feature_path', 'tissue_id', 'modalities'}
+    _exclude = {'label', 'sample_id', 'slide_id', 'patient_id', 'feature_path', 'tissue_id', 'modalities'}
     return {k: v for k, v in batch.items() if k not in _exclude}
 
   # -- Build helpers --
@@ -265,7 +265,7 @@ class TrainingMixin:
         batch = self._move_to_device(raw_batch)
         inputs = self._model_inputs(batch)
         labels = batch['label']
-        sample_ids = batch.get('sample_id', ['unknown'] * len(labels))
+        sample_ids = batch.get('slide_id') or batch.get('sample_id') or ['unknown'] * len(labels)
         patient_ids_b = batch.get('patient_id', sample_ids)
 
         logits = model(inputs)['logits']
