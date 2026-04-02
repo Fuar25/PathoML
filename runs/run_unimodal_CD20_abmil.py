@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (
   run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
-  HE_PATCH_BASE, CD20_PATCH_BASE, CD3_PATCH_BASE,
+  HE_PATCH_BASE, CD20_PATCH_BASE, CD3_PATCH_BASE, LABELS_CSV,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD, MLP_HIDDEN_DIM, DROPOUT_RATE, BATCH_SIZE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
@@ -20,6 +20,7 @@ def make_config(common_keys) -> RunTimeConfig:
   config.dataset.dataset_name = "UnimodalSlideDataset"
   config.dataset.dataset_kwargs["data_path"] = CD20_PATCH_BASE
   config.dataset.dataset_kwargs["allowed_sample_keys"] = common_keys
+  config.dataset.dataset_kwargs["labels_csv"] = LABELS_CSV
   config.model.model_name = "abmil"
   config.model.model_kwargs = {"hidden_dim": MLP_HIDDEN_DIM, "dropout": DROPOUT_RATE}
   config.training.device = DEVICE

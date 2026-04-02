@@ -31,6 +31,7 @@ class MultimodalFusionSlideDataset(_MultimodalSlideBase):
     modality_paths: Dict[str, str],
     modality_names: List[str],
     fusion_weights: Dict[str, float],
+    labels_csv: str,
     patient_id_pattern: str = PATIENT_ID_PATTERN,
     allow_missing_modalities: bool = True,
     verbose: bool = True,
@@ -43,6 +44,7 @@ class MultimodalFusionSlideDataset(_MultimodalSlideBase):
     super().__init__(
       modality_paths=modality_paths,
       modality_names=modality_names,
+      labels_csv=labels_csv,
       patient_id_pattern=patient_id_pattern,
       allow_missing_modalities=allow_missing_modalities,
       verbose=False,  # suppress base print; we print below with extra info

@@ -9,7 +9,7 @@ import h5py
 
 from ...interfaces import BaseDataset
 from ...config.defaults import PATIENT_ID_PATTERN
-from ..utils import _extract_patient_tissue_id
+from ..utils import _extract_patient_tissue_id, load_labels_csv
 
 
 class _MultimodalSlideBase(BaseDataset):
@@ -19,16 +19,15 @@ class _MultimodalSlideBase(BaseDataset):
   Subclasses implement __getitem__ for their specific fusion strategy.
 
   Directory layout per modality path:
-      modality_path/
-        <class_name_1>/*.h5
-        <class_name_2>/*.h5
-  Class names are detected as the union of subdirectory names across all modalities.
+      modality_path/*.h5      ← flat directory
+      labels_csv              ← patient_id,label
   """
 
   def __init__(
     self,
     modality_paths: Dict[str, str],
     modality_names: List[str],
+    labels_csv: str,
     patient_id_pattern: str = PATIENT_ID_PATTERN,
     allow_missing_modalities: bool = True,
     binary_mode: Optional[bool] = None,
@@ -41,24 +40,15 @@ class _MultimodalSlideBase(BaseDataset):
     self.allow_missing_modalities = allow_missing_modalities
     self.verbose = verbose
     self.allowed_sample_keys = allowed_sample_keys
+    self._label_map = load_labels_csv(labels_csv)
 
-    self.classes = self._detect_classes()
+    self.classes = sorted(set(self._label_map.values()), reverse=True)
     self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
     self.binary_mode = binary_mode if binary_mode is not None else len(self.classes) == 2
 
     self.samples: List[Dict[str, Any]] = []
     self.modality_index: Dict[Tuple[str, str], Dict[str, str]] = {}
     self._build_samples()
-
-  def _detect_classes(self) -> List[str]:
-    """Union of class subdirectory names across all modality paths."""
-    classes: Set[str] = set()
-    for modality_dir in self.modality_paths.values():
-      if os.path.isdir(modality_dir):
-        for item in os.listdir(modality_dir):
-          if os.path.isdir(os.path.join(modality_dir, item)):
-            classes.add(item)
-    return sorted(classes)
 
   def _get_modality_dir(self, modality_name: str) -> Optional[str]:
     modality_lower = modality_name.lower()
@@ -72,21 +62,19 @@ class _MultimodalSlideBase(BaseDataset):
   ) -> Dict[Tuple[str, str, str], str]:
     """Return {(patient_id, tissue_id, class_name): filepath} for one modality."""
     result: Dict[Tuple[str, str, str], str] = {}
-    for cls_name in self.classes:
-      class_dir = os.path.join(modality_dir, cls_name)
-      if not os.path.isdir(class_dir):
+    for filename in os.listdir(modality_dir):
+      if not filename.endswith('.h5'):
         continue
-      for root, _, files in os.walk(class_dir):
-        for filename in files:
-          if not filename.endswith('.h5'):
-            continue
-          key_info = _extract_patient_tissue_id(filename, self.patient_id_pattern)
-          if key_info is None:
-            continue
-          patient_id, tissue_id = key_info
-          full_key = (patient_id, tissue_id, cls_name)
-          if full_key not in result:
-            result[full_key] = os.path.join(root, filename)
+      key_info = _extract_patient_tissue_id(filename, self.patient_id_pattern)
+      if key_info is None:
+        continue
+      patient_id, tissue_id = key_info
+      cls_name = self._label_map.get(patient_id)
+      if cls_name is None:
+        continue
+      full_key = (patient_id, tissue_id, cls_name)
+      if full_key not in result:
+        result[full_key] = os.path.join(modality_dir, filename)
     return result
 
   def _build_samples(self) -> None:

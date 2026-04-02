@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import (
   run_condition, log_results, find_common_sample_keys, modality_names,
   RunTimeConfig,
-  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE,
+  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE, LABELS_CSV,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, WD, MLP_HIDDEN_DIM, BATCH_SIZE, SLIDE_LR, PATIENCE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
@@ -23,6 +23,7 @@ def make_config(common_keys) -> RunTimeConfig:
     "modality_names": ["HE", "CD20"],
     "allow_missing_modalities": True,
     "allowed_sample_keys": common_keys,
+    "labels_csv": LABELS_CSV,
   }
   config.model.model_name = "mlp"
   config.model.model_module_paths = ["PathoML.models.mlp"]

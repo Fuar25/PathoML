@@ -38,15 +38,13 @@ Patch-level datasets — each H5 contains N patch feature vectors `(N, D)`. Use 
 | `UnimodalPatchDataset` | `UnimodalPatchDataset` | `(N, D)` |
 
 ## 4. Directory Layout
-All datasets use a consistent layout:
+All datasets require a flat directory + external CSV labels:
 ```
-data_path/          ← data_path (Unimodal) or each modality_path value (Multimodal)
-  <class_name_1>/
-    *.h5
-  <class_name_2>/
-    *.h5
+data_path/*.h5              ← flat, no class subdirectories
+labels.csv                  ← patient_id,label
 ```
-Class names are auto-detected from subdirectory names. H5 files are scanned recursively.
+CSV format: header row `patient_id,label`, one row per patient. `load_labels_csv()` in `utils.py` parses it.
+Class-to-index mapping: classes sorted reverse-alphabetically, so positive class gets index 1. E.g. Reactive=0, MALT=1.
 
 ## 5. File Naming Convention
 H5 files must follow `<patient_id><tissue_id>-<anything>.h5`, e.g. `B2022-01475B-cd20.h5`.
@@ -80,6 +78,7 @@ dataset = UnimodalPatchDataset(data_path="/data/root")
 - Missing modalities: zero-padded (Concat/Interact) or excluded from weighted mean (Fusion) when `allow_missing_modalities=True`.
 - `allowed_sample_keys: Optional[Set[Tuple[str, str]]]` whitelist accepted by all datasets. Use `find_common_sample_keys(dirs)` to compute intersection across modality roots.
 - `_extract_patient_tissue_id` is defined once in `utils.py` and imported by all dataset modules.
+- **`labels_csv` parameter**: All dataset classes require `labels_csv: str`. Directories are scanned flat (no class subdirs) and labels come from the CSV.
 
 ## TODO
 1. Interpretability data interface: reserve hooks for attention-map-aligned coordinate export.

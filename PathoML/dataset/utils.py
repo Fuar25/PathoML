@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from ..config.defaults import PATIENT_ID_PATTERN
 
@@ -27,6 +27,25 @@ def _extract_patient_tissue_id(
     return (patient_id, tissue_match.group(1))
   return None
 
+
+
+def load_labels_csv(csv_path: str) -> Dict[str, str]:
+  """Load patient_id → class_name mapping from a CSV file.
+
+  CSV format:
+      patient_id,label
+      B2018-06208,MALT
+      B2022-16580,Reactive
+
+  Args:
+      csv_path: Path to CSV file with 'patient_id' and 'label' columns.
+  """
+  import csv as csv_mod
+  labels: Dict[str, str] = {}
+  with open(csv_path, 'r', encoding='utf-8') as f:
+    for row in csv_mod.DictReader(f):
+      labels[row['patient_id']] = row['label']
+  return labels
 
 
 def find_common_sample_keys(
