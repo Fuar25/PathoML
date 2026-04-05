@@ -20,15 +20,16 @@ class MultimodalFusionSlideDataset(_MultimodalSlideBase):
 
   Usage:
       dataset = MultimodalFusionSlideDataset(
-          modality_paths={'HE': '/data/HE', 'CD20': '/data/CD20'},
+          data_root='/data/Slide',
           modality_names=['HE', 'CD20'],
           fusion_weights={'HE': 0.6, 'CD20': 0.4},
+          labels_csv='labels.csv',
       )
   """
 
   def __init__(
     self,
-    modality_paths: Dict[str, str],
+    data_root: str,
     modality_names: List[str],
     fusion_weights: Dict[str, float],
     labels_csv: str,
@@ -42,7 +43,7 @@ class MultimodalFusionSlideDataset(_MultimodalSlideBase):
     self.fusion_weights = {k: v / total for k, v in fusion_weights.items()}
 
     super().__init__(
-      modality_paths=modality_paths,
+      data_root=data_root,
       modality_names=modality_names,
       labels_csv=labels_csv,
       patient_id_pattern=patient_id_pattern,

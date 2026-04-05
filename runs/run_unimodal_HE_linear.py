@@ -5,20 +5,22 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from common import (
-  run_condition, log_results, find_common_sample_keys, modality_names,
+  run_condition, log_results, find_common_sample_keys,
   RunTimeConfig,
-  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE, LABELS_CSV,
+  SLIDE_FEAT_ROOT, LABELS_CSV,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, WD, BATCH_SIZE, SLIDE_LR, PATIENCE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
 
+STAINS = ["HE", "CD20", "CD3"]
 CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 
 
 def make_config(common_keys) -> RunTimeConfig:
   config = RunTimeConfig()
   config.dataset.dataset_name = "UnimodalSlideDataset"
-  config.dataset.dataset_kwargs["data_path"] = HE_SLIDE_BASE
+  config.dataset.dataset_kwargs["data_root"] = SLIDE_FEAT_ROOT
+  config.dataset.dataset_kwargs["stain"] = "HE"
   config.dataset.dataset_kwargs["allowed_sample_keys"] = common_keys
   config.dataset.dataset_kwargs["labels_csv"] = LABELS_CSV
   config.model.model_name = "linear_probe"
@@ -33,15 +35,12 @@ def make_config(common_keys) -> RunTimeConfig:
 
 
 def main():
-  # 仅保留 HE, CD20, CD3 均存在的样本，与多模态实验保持一致
-  intersection_bases = [HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE]
-  common_keys = find_common_sample_keys(intersection_bases)
-  print(f"公共样本数（HE ∩ CD20 ∩ CD3）: {len(common_keys)}")
+  common_keys = find_common_sample_keys(SLIDE_FEAT_ROOT, STAINS)
+  print(f"公共样本数（{' ∩ '.join(STAINS)}）: {len(common_keys)}")
 
   config = make_config(common_keys)
   results = run_condition(CONDITION_NAME, config, N_RUNS, K_FOLDS, output_dir=OUTPUTS_DIR)
-  log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config,
-              sample_intersection=modality_names(intersection_bases))
+  log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config, stains=STAINS)
 
 
 if __name__ == "__main__":

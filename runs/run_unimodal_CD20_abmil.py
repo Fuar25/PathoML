@@ -1,24 +1,26 @@
-# CD20 单模态 ABMIL 实验。
+# CD20 单模态 ABMIL 实验（GigaPath-Patch-Feature）。
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from common import (
-  run_condition, log_results, find_common_sample_keys, modality_names,
+  run_condition, log_results, find_common_sample_keys,
   RunTimeConfig,
-  HE_PATCH_BASE, CD20_PATCH_BASE, CD3_PATCH_BASE, LABELS_CSV,
+  PATCH_FEAT_ROOT, SLIDE_FEAT_ROOT, LABELS_CSV,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD, MLP_HIDDEN_DIM, DROPOUT_RATE, BATCH_SIZE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
 
+INTERSECTION_STAINS = ["HE", "CD20", "CD3"]
 CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 
 
 def make_config(common_keys) -> RunTimeConfig:
   config = RunTimeConfig()
-  config.dataset.dataset_name = "UnimodalSlideDataset"
-  config.dataset.dataset_kwargs["data_path"] = CD20_PATCH_BASE
+  config.dataset.dataset_name = "UnimodalPatchDataset"
+  config.dataset.dataset_kwargs["data_root"] = PATCH_FEAT_ROOT
+  config.dataset.dataset_kwargs["stain"] = "CD20"
   config.dataset.dataset_kwargs["allowed_sample_keys"] = common_keys
   config.dataset.dataset_kwargs["labels_csv"] = LABELS_CSV
   config.model.model_name = "abmil"
@@ -33,15 +35,13 @@ def make_config(common_keys) -> RunTimeConfig:
 
 
 def main():
-  # 仅保留 HE 和 CD20 均存在的样本，与多模态实验保持一致
-  intersection_bases = [HE_PATCH_BASE, CD20_PATCH_BASE, CD3_PATCH_BASE]
-  common_keys = find_common_sample_keys(intersection_bases)
-  print(f"公共样本数（HE_patch ∩ CD20_patch ∩ CD3_patch）: {len(common_keys)}")
+  common_keys = find_common_sample_keys(SLIDE_FEAT_ROOT, INTERSECTION_STAINS)
+  print(f"公共样本数（{' ∩ '.join(INTERSECTION_STAINS)}）: {len(common_keys)}")
 
   config = make_config(common_keys)
   results = run_condition(CONDITION_NAME, config, N_RUNS, K_FOLDS, output_dir=OUTPUTS_DIR)
   log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config,
-              sample_intersection=modality_names(intersection_bases))
+              stains=INTERSECTION_STAINS)
 
 
 if __name__ == "__main__":

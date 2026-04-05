@@ -12,7 +12,56 @@ from ..config.defaults import PATIENT_ID_PATTERN
 
 
 # ---------------------------------------------------------------------------
-# (0) Collate helper — handles variable-length tensors (e.g. coords)
+# (0) Stain helpers — normalize stain names for matching
+# ---------------------------------------------------------------------------
+
+def _normalize_stain(name: str) -> str:
+  """Normalize stain name for matching: lowercase + strip hyphens.
+
+  Examples: "Ki-67" → "ki67", "CK-pan" → "ckpan", "CD20" → "cd20"
+  """
+  return name.lower().replace('-', '')
+
+
+def _extract_stain(filename: str) -> Optional[str]:
+  """Extract normalized stain from H5 filename.
+
+  Example: "B2022-01475B-HE.h5" → "he", "B2022-01475B-cd20.h5" → "cd20"
+  """
+  base = filename.replace('.h5', '')
+  parts = base.rsplit('-', 1)
+  if len(parts) == 2:
+    return parts[1].lower()
+  return None
+
+
+def _walk_h5_files(
+  root: str,
+  stain: Optional[str] = None,
+) -> List[Tuple[str, str]]:
+  """Recursively scan root for H5 files, optionally filtering by stain.
+
+  Args:
+      root: Directory to scan recursively.
+      stain: If provided, only return files whose stain matches (case/hyphen insensitive).
+
+  Returns:
+      List of (filename, absolute_filepath) tuples.
+  """
+  target = _normalize_stain(stain) if stain else None
+  results = []
+  for dirpath, _, filenames in os.walk(root):
+    for fname in filenames:
+      if not fname.endswith('.h5'):
+        continue
+      if target is not None and _extract_stain(fname) != target:
+        continue
+      results.append((fname, os.path.join(dirpath, fname)))
+  return results
+
+
+# ---------------------------------------------------------------------------
+# (1) Collate helper — handles variable-length tensors (e.g. coords)
 # ---------------------------------------------------------------------------
 
 def _variable_size_collate(batch):
@@ -99,43 +148,38 @@ def load_labels_csv(csv_path: str) -> Dict[str, str]:
 
 
 def find_common_sample_keys(
-  dirs: List[str],
+  data_root: str,
+  stains: List[str],
   patient_id_pattern: str = PATIENT_ID_PATTERN,
 ) -> Set[Tuple[str, str]]:
-  """Return the intersection of (patient_id, tissue_id) pairs across all directories.
+  """Return the intersection of (patient_id, tissue_id) pairs across stains.
 
-  Each dir is expected to be a modality root containing class subdirectories
-  (e.g. /data/HE with MALT/ and Reactive/ inside). All .h5 files are scanned
-  recursively, and (patient_id, tissue_id) pairs are extracted from filenames
-  following the convention <patient_id><tissue_id>-<anything>.h5.
+  Scans data_root recursively, groups files by stain, then intersects.
 
   Usage:
-      common = find_common_sample_keys(['/data/HE', '/data/CD20'])
-      # Returns only keys present in both directories.
+      common = find_common_sample_keys('/data/Slide', ['HE', 'CD20', 'CD3'])
 
   Args:
-      dirs: List of modality root directories to intersect.
+      data_root: Feature root directory (patient/tissue structure or flat).
+      stains: List of stain names to intersect.
       patient_id_pattern: Regex with group 1 matching the patient ID.
 
   Returns:
-      Set of (patient_id, tissue_id) tuples present in every directory.
+      Set of (patient_id, tissue_id) tuples present for every stain.
   """
-  if not dirs:
+  if not stains:
     return set()
 
-  per_dir_keys: List[Set[Tuple[str, str]]] = []
-  for d in dirs:
+  per_stain_keys: List[Set[Tuple[str, str]]] = []
+  for stain in stains:
     keys: Set[Tuple[str, str]] = set()
-    for root, _, files in os.walk(d):
-      for filename in files:
-        if not filename.endswith(".h5"):
-          continue
-        key = _extract_patient_tissue_id(filename, patient_id_pattern)
-        if key is not None:
-          keys.add(key)
-    per_dir_keys.append(keys)
+    for fname, _ in _walk_h5_files(data_root, stain=stain):
+      key = _extract_patient_tissue_id(fname, patient_id_pattern)
+      if key is not None:
+        keys.add(key)
+    per_stain_keys.append(keys)
 
-  result = per_dir_keys[0]
-  for keys in per_dir_keys[1:]:
+  result = per_stain_keys[0]
+  for keys in per_stain_keys[1:]:
     result = result & keys
   return result

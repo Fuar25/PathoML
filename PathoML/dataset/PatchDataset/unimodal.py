@@ -12,35 +12,38 @@ import torch
 from ...interfaces import BaseDataset
 from ...registry import register_dataset
 from ...config.defaults import PATIENT_ID_PATTERN
-from ..utils import _extract_patient_tissue_id, load_labels_csv
+from ..utils import _extract_patient_tissue_id, _walk_h5_files, load_labels_csv
 
 
 class _UnimodalPatchBase(BaseDataset):
   """Base for single-modality patch-level datasets.
 
-  Directory layout:
-      data_path/*.h5          ← flat directory
-      labels_csv              ← patient_id,label
+  Directory layout (patient-based):
+      data_root/<patient_id>/<tissue_id>/<patient_id><tissue_id>-<stain>.h5
+      labels_csv  ← patient_id,label
   """
 
   def __init__(
     self,
-    data_path: str,
+    data_root: str,
     labels_csv: str,
+    stain: Optional[str] = None,
     patient_id_pattern: str = PATIENT_ID_PATTERN,
     binary_mode: Optional[bool] = None,
     allowed_sample_keys: Optional[Set[Tuple[str, str]]] = None,
   ) -> None:
     """
     Args:
-        data_path: Flat directory containing H5 files.
+        data_root: Feature root directory (scanned recursively).
         labels_csv: Path to CSV with 'patient_id' and 'label' columns.
+        stain: If provided, only include H5 files matching this stain.
         patient_id_pattern: Regex with group 1 matching the patient ID.
         binary_mode: Float labels for binary, long for multi-class.
             Auto-detected from number of classes if None.
         allowed_sample_keys: Optional (patient_id, tissue_id) whitelist.
     """
-    self.data_path = data_path
+    self.data_root = data_root
+    self.stain = stain
     self.patient_id_pattern = patient_id_pattern
     self.allowed_sample_keys = allowed_sample_keys
     self._label_map = load_labels_csv(labels_csv)
@@ -51,12 +54,11 @@ class _UnimodalPatchBase(BaseDataset):
     self.samples: List[Dict[str, Any]] = []
     self._scan_files()
 
+    self.samples.sort(key=lambda x: (x['patient_id'], x['tissue_id']))
     print(f"{self.__class__.__name__} loaded: {len(self.samples)} samples, classes={self.classes}")
 
   def _scan_files(self) -> None:
-    for filename in os.listdir(self.data_path):
-      if not filename.endswith('.h5'):
-        continue
+    for filename, filepath in _walk_h5_files(self.data_root, stain=self.stain):
       key = _extract_patient_tissue_id(filename, self.patient_id_pattern)
       if key is None:
         continue
@@ -70,7 +72,7 @@ class _UnimodalPatchBase(BaseDataset):
         'slide_id':      filename.replace('.h5', ''),
         'patient_id':    patient_id,
         'tissue_id':     tissue_id,
-        '_feature_path': os.path.join(self.data_path, filename),
+        '_feature_path': filepath,
         'label':         self.class_to_idx[cls_name],
         'class_name':    cls_name,
       })
@@ -115,6 +117,6 @@ class UnimodalPatchDataset(_UnimodalPatchBase):
   H5 'features' shape: (N, D). Use with a MIL model downstream.
 
   Usage:
-      dataset = UnimodalPatchDataset(data_path='/data/root')
+      dataset = UnimodalPatchDataset(data_root='/data/Patch', stain='HE', labels_csv='labels.csv')
   """
   pass

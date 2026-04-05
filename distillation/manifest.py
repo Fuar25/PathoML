@@ -6,7 +6,8 @@
 用法:
   manifest = load_manifest('runs/outputs/concat_HE_CD20_mlp/manifest.json')
   manifest.n_runs          # 5
-  manifest.slide_modality_paths  # {"HE": "/.../HE", "CD20": "/.../CD20"}
+  manifest.data_root       # "/.../GigaPath-Slide-Feature"
+  manifest.modality_names  # ["HE", "CD20"]
   manifest.ckpt_tmpl       # 绝对路径模板
 """
 
@@ -23,9 +24,9 @@ class TeacherManifest:
   n_runs: int
   k_folds: int
   base_seed: int
-  modality_names: List[str]            # 模态顺序（决定 slide_concat 拼接顺序）
-  slide_modality_paths: Dict[str, str] # 模态名 → slide 特征目录
-  ckpt_tmpl: str                       # 已转为绝对路径的 checkpoint 模板
+  modality_names: List[str]  # 模态顺序（决定 slide_concat 拼接顺序）
+  data_root: str             # slide 特征根目录
+  ckpt_tmpl: str             # 已转为绝对路径的 checkpoint 模板
 
 
 def load_manifest(manifest_path: str) -> TeacherManifest:
@@ -55,7 +56,7 @@ def load_manifest(manifest_path: str) -> TeacherManifest:
     k_folds=data["k_folds"],
     base_seed=data["base_seed"],
     modality_names=data.get("modality_names", []),
-    slide_modality_paths=data.get("modality_paths", {}),
+    data_root=data.get("data_root", ""),
     ckpt_tmpl=ckpt_tmpl,
   )
 

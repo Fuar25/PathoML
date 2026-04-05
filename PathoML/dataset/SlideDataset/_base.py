@@ -9,7 +9,7 @@ import h5py
 
 from ...interfaces import BaseDataset
 from ...config.defaults import PATIENT_ID_PATTERN
-from ..utils import _extract_patient_tissue_id, load_labels_csv
+from ..utils import _extract_patient_tissue_id, _walk_h5_files, load_labels_csv
 
 
 class _MultimodalSlideBase(BaseDataset):
@@ -18,14 +18,14 @@ class _MultimodalSlideBase(BaseDataset):
   Handles class detection, symmetric modality scanning, and sample building.
   Subclasses implement __getitem__ for their specific fusion strategy.
 
-  Directory layout per modality path:
-      modality_path/*.h5      ← flat directory
-      labels_csv              ← patient_id,label
+  Directory layout (patient-based):
+      data_root/<patient_id>/<tissue_id>/<patient_id><tissue_id>-<stain>.h5
+      labels_csv  ← patient_id,label
   """
 
   def __init__(
     self,
-    modality_paths: Dict[str, str],
+    data_root: str,
     modality_names: List[str],
     labels_csv: str,
     patient_id_pattern: str = PATIENT_ID_PATTERN,
@@ -34,7 +34,7 @@ class _MultimodalSlideBase(BaseDataset):
     verbose: bool = True,
     allowed_sample_keys: Optional[Set[Tuple[str, str]]] = None,
   ) -> None:
-    self.modality_paths = modality_paths
+    self.data_root = data_root
     self.modality_names = modality_names
     self.patient_id_pattern = patient_id_pattern
     self.allow_missing_modalities = allow_missing_modalities
@@ -50,21 +50,12 @@ class _MultimodalSlideBase(BaseDataset):
     self.modality_index: Dict[Tuple[str, str], Dict[str, str]] = {}
     self._build_samples()
 
-  def _get_modality_dir(self, modality_name: str) -> Optional[str]:
-    modality_lower = modality_name.lower()
-    for key, modality_dir in self.modality_paths.items():
-      if key.lower() == modality_lower:
-        return modality_dir
-    return None
-
   def _collect_modality_map(
-    self, modality_name: str, modality_dir: str
+    self, stain: str,
   ) -> Dict[Tuple[str, str, str], str]:
-    """Return {(patient_id, tissue_id, class_name): filepath} for one modality."""
+    """Return {(patient_id, tissue_id, class_name): filepath} for one stain."""
     result: Dict[Tuple[str, str, str], str] = {}
-    for filename in os.listdir(modality_dir):
-      if not filename.endswith('.h5'):
-        continue
+    for filename, filepath in _walk_h5_files(self.data_root, stain=stain):
       key_info = _extract_patient_tissue_id(filename, self.patient_id_pattern)
       if key_info is None:
         continue
@@ -74,7 +65,7 @@ class _MultimodalSlideBase(BaseDataset):
         continue
       full_key = (patient_id, tissue_id, cls_name)
       if full_key not in result:
-        result[full_key] = os.path.join(modality_dir, filename)
+        result[full_key] = filepath
     return result
 
   def _build_samples(self) -> None:
@@ -82,11 +73,7 @@ class _MultimodalSlideBase(BaseDataset):
     # (1) Collect per-modality maps
     modality_maps: Dict[str, Dict[Tuple[str, str, str], str]] = {}
     for modality_name in self.modality_names:
-      modality_dir = self._get_modality_dir(modality_name)
-      modality_maps[modality_name] = (
-        self._collect_modality_map(modality_name, modality_dir)
-        if modality_dir is not None else {}
-      )
+      modality_maps[modality_name] = self._collect_modality_map(modality_name)
 
     # (2) Union of all (patient_id, tissue_id, class_name) keys
     all_full_keys: Set[Tuple[str, str, str]] = set()

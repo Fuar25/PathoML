@@ -18,8 +18,9 @@ class MultimodalConcatSlideDataset(_MultimodalSlideBase):
 
   Usage:
       dataset = MultimodalConcatSlideDataset(
-          modality_paths={'HE': '/data/HE', 'CD20': '/data/CD20', 'CD3': '/data/CD3'},
+          data_root='/data/Slide',
           modality_names=['HE', 'CD20', 'CD3'],
+          labels_csv='labels.csv',
       )
   """
 
@@ -36,27 +37,18 @@ class MultimodalConcatSlideDataset(_MultimodalSlideBase):
 
   def _infer_feature_dims(self) -> Dict[str, int]:
     """Infer feature dim per modality (needed to zero-pad missing modalities)."""
-    import os, h5py, numpy as np
+    import h5py, numpy as np
+    from ..utils import _walk_h5_files
     dims: Dict[str, int] = {}
     for modality_name in self.modality_names:
-      modality_dir = self._get_modality_dir(modality_name)
-      if modality_dir is None:
-        continue
-      found = False
-      for root, _, files in os.walk(modality_dir):
-        for filename in files:
-          if not filename.endswith('.h5'):
-            continue
-          try:
-            with h5py.File(os.path.join(root, filename), 'r') as f:
-              dims[modality_name] = int(torch.from_numpy(np.array(f['features'])).float().shape[-1])
-              found = True
-              break
-          except Exception:
-            continue
-        if found:
+      for _, filepath in _walk_h5_files(self.data_root, stain=modality_name):
+        try:
+          with h5py.File(filepath, 'r') as f:
+            dims[modality_name] = int(torch.from_numpy(np.array(f['features'])).float().shape[-1])
           break
-      if not found and self.verbose:
+        except Exception:
+          continue
+      if modality_name not in dims and self.verbose:
         print(f"Warning: could not infer feature dim for modality '{modality_name}'")
     return dims
 

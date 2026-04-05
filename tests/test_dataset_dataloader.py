@@ -13,7 +13,7 @@ def test_dataset_len_and_item_shapes(synthetic_dataset):
   assert item['features'].shape == (5, 32)
   assert item['label'].ndim == 0              # 0-dim scalar tensor
   assert item['label'].dtype == torch.float32
-  assert isinstance(item['sample_id'], str)
+  assert isinstance(item['slide_id'], str)
   assert isinstance(item['patient_id'], str)
 
 

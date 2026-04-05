@@ -32,23 +32,13 @@ _FEAT_ROOT_CANDIDATES = [
 _FEAT_ROOT = os.environ.get("PATHOML_FEAT_ROOT") or next(
   (p for p in _FEAT_ROOT_CANDIDATES if os.path.isdir(p)), _FEAT_ROOT_CANDIDATES[0]
 )
-LABELS_CSV = f"{_FEAT_ROOT}/labels.csv"
 
-_SLIDE_FEAT_ROOT = f"{_FEAT_ROOT}/GigaPath-Slide-Feature"
-HE_SLIDE_BASE    = f"{_SLIDE_FEAT_ROOT}/HE"
-CD20_SLIDE_BASE  = f"{_SLIDE_FEAT_ROOT}/CD20"
-CD21_SLIDE_BASE  = f"{_SLIDE_FEAT_ROOT}/CD21"
-Ki67_SLIDE_BASE  = f"{_SLIDE_FEAT_ROOT}/Ki-67"
-CKpan_SLIDE_BASE = f"{_SLIDE_FEAT_ROOT}/CK-pan"
-CD3_SLIDE_BASE   = f"{_SLIDE_FEAT_ROOT}/CD3"
+# CSV 标签文件：环境变量覆盖，换 CSV = 换数据子集
+LABELS_CSV = os.environ.get("PATHOML_LABELS_CSV") or f"{_FEAT_ROOT}/labels.csv"
 
-_PATCH_FEAT_ROOT = f"{_FEAT_ROOT}/GigaPath-Patch-Feature"
-HE_PATCH_BASE    = f"{_PATCH_FEAT_ROOT}/HE"
-CD20_PATCH_BASE  = f"{_PATCH_FEAT_ROOT}/CD20"
-CD21_PATCH_BASE  = f"{_PATCH_FEAT_ROOT}/CD21"
-Ki67_PATCH_BASE  = f"{_PATCH_FEAT_ROOT}/Ki-67"
-CKpan_PATCH_BASE = f"{_PATCH_FEAT_ROOT}/CK-pan"
-CD3_PATCH_BASE   = f"{_PATCH_FEAT_ROOT}/CD3"
+# 特征根目录（patient-based 结构，递归扫描 + stain 过滤）
+SLIDE_FEAT_ROOT = f"{_FEAT_ROOT}/GigaPath-Slide-Feature"
+PATCH_FEAT_ROOT = f"{_FEAT_ROOT}/GigaPath-Patch-Feature"
 
 
 # ─── 超参数默认值 ─────────────────────────────────────────────────────────────
@@ -78,9 +68,9 @@ SHARED_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resu
 
 # ─── 工具函数 ─────────────────────────────────────────────────────────────────
 
-def modality_names(bases: list[str]) -> list[str]:
-  """从数据路径列表中提取模态名（取路径末尾目录名）。"""
-  return [os.path.basename(b.rstrip("/")) for b in bases]
+def modality_names(stains: list[str]) -> list[str]:
+  """透传染色名列表（保持接口对称，不做转换）。"""
+  return list(stains)
 
 
 def run_cv(config: RunTimeConfig, k_folds: int) -> tuple[list[float], list[float]]:
@@ -177,7 +167,7 @@ def _save_manifest(
     "k_folds": k_folds,
     "base_seed": base_seed,
     "modality_names": dkw.get("modality_names", []),
-    "modality_paths": dkw.get("modality_paths", {}),
+    "data_root": dkw.get("data_root", ""),
     "model_name": config.model.model_name,
     "model_kwargs": config.model.model_kwargs,
     # (1) 相对路径模板（相对于 manifest 所在目录）
@@ -197,7 +187,7 @@ def log_results(
   n_runs: int = N_RUNS,
   k_folds: int = K_FOLDS,
   base_seed: int = BASE_SEED,
-  sample_intersection: list[str] | None = None,
+  stains: list[str] | None = None,
 ) -> None:
   """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
   # (1) 格式化表格
@@ -225,8 +215,8 @@ def log_results(
 
   # (2) 配置摘要（排除 path/name 类字段）
   lines.append(hsep)
-  if sample_intersection:
-    lines.append(f"样本交集: {' ∩ '.join(sample_intersection)}")
+  if stains:
+    lines.append(f"样本交集: {' ∩ '.join(stains)}")
   lines.append(f"N_RUNS={n_runs}  K_FOLDS={k_folds}  BASE_SEED={base_seed}")
   if config is not None:
     t = config.training

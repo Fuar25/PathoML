@@ -28,7 +28,8 @@ from trainer import DistillCrossValidator
 
 # ─── 数据路径 ────────────────────────────────────────────────────────────────
 
-PATCH_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Patch-Feature/HE'
+PATCH_FEAT_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Flat/GigaPath-Patch-Feature'
+LABELS_CSV = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Flat/labels.csv'
 
 
 # ─── 超参数默认值 ─────────────────────────────────────────────────────────────
@@ -56,37 +57,39 @@ SHARED_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resu
 
 def load_distill_dataset(
   manifest,
-  patch_root: str = PATCH_ROOT,
-  intersection_modalities: list[str] | None = None,
+  patch_root: str = PATCH_FEAT_ROOT,
+  labels_csv: str = LABELS_CSV,
+  intersection_stains: list[str] | None = None,
 ) -> tuple[DistillationDataset, list[str]]:
   """从 manifest 加载蒸馏数据集。
 
   Args:
-    intersection_modalities: 样本交集所用模态。None 时自动从 manifest 推导。
+    intersection_stains: 样本交集所用染色列表。None 时自动从 manifest 推导。
 
   Returns:
-    (dataset, intersection_names)
+    (dataset, intersection_stains)
   """
   print('Loading dataset...')
-  slide_paths = manifest.slide_modality_paths
-  feat_root = os.path.dirname(next(iter(slide_paths.values())).rstrip("/"))
+  slide_root = manifest.data_root
 
-  if intersection_modalities is not None:
-    intersection_bases = [os.path.join(feat_root, m) for m in intersection_modalities]
-    intersection_names = list(intersection_modalities)
-  else:
-    intersection_bases = list(slide_paths.values())
-    intersection_names = list(manifest.modality_names)
+  if intersection_stains is None:
+    intersection_stains = list(manifest.modality_names)
 
-  common_keys = find_common_sample_keys(intersection_bases)
-  print(f'  公共样本数（{" ∩ ".join(intersection_names)}）: {len(common_keys)}')
+  # Patch root 只取 HE，slide root 取所有 intersection_stains
+  patch_keys = find_common_sample_keys(patch_root, ['HE'])
+  slide_keys = find_common_sample_keys(slide_root, intersection_stains)
+  common_keys = patch_keys & slide_keys
+  print(f'  公共样本数（HE_patch ∩ slide({" ∩ ".join(intersection_stains)})）: {len(common_keys)}')
+
   dataset = DistillationDataset(
     patch_root=patch_root,
-    slide_roots=manifest.slide_modality_paths,
+    slide_root=slide_root,
+    slide_stains=list(manifest.modality_names),
+    labels_csv=labels_csv,
     allowed_sample_keys=common_keys,
   )
   print(f'  {len(dataset)} samples, classes: {dataset.classes}')
-  return dataset, intersection_names
+  return dataset, intersection_stains
 
 
 def run_distill_cv(
@@ -170,7 +173,7 @@ def log_results(
   distill_loss=None,
   manifest=None,
   student_kwargs: dict = STUDENT_KWARGS,
-  sample_intersection: list[str] | None = None,
+  stains: list[str] | None = None,
 ) -> None:
   """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
   sep  = "=" * 100
@@ -196,8 +199,8 @@ def log_results(
     )
 
   lines.append(hsep)
-  if sample_intersection:
-    lines.append(f"样本交集: {' ∩ '.join(sample_intersection)}")
+  if stains:
+    lines.append(f"样本交集: {' ∩ '.join(stains)}")
   if manifest:
     lines.append(f"teacher: {manifest.condition_name}")
     lines.append(f"teacher_modalities: {', '.join(manifest.modality_names)}")

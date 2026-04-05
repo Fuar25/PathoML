@@ -63,7 +63,7 @@ def synthetic_dataset():
       return {
         'features': torch.randn(self.n_instances, self.n_features),
         'label': torch.tensor(self._labels[idx], dtype=torch.float32),
-        'sample_id': f"sample_{idx}",
+        'slide_id': f"sample_{idx}",
         'patient_id': self._patient_ids[idx],
       }
 
@@ -114,7 +114,7 @@ def synthetic_varlen_dataset():
         'features': torch.randn(n_instances, self.n_features),
         'coords': torch.randn(n_instances, 2),
         'label': torch.tensor(self._labels[idx], dtype=torch.float32),
-        'sample_id': f"sample_{idx}",
+        'slide_id': f"sample_{idx}",
         'patient_id': self._patient_ids[idx],
       }
 

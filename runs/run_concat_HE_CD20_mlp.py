@@ -5,13 +5,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from common import (
-  run_condition, log_results, find_common_sample_keys, modality_names,
+  run_condition, log_results, find_common_sample_keys,
   RunTimeConfig,
-  HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE, LABELS_CSV,
+  SLIDE_FEAT_ROOT, LABELS_CSV,
   N_RUNS, K_FOLDS, DEVICE, EPOCHS, WD, MLP_HIDDEN_DIM, BATCH_SIZE, SLIDE_LR, PATIENCE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
 
+STAINS = ["HE", "CD20"]
+INTERSECTION_STAINS = ["HE", "CD20", "CD3"]
 CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 
 
@@ -19,8 +21,8 @@ def make_config(common_keys) -> RunTimeConfig:
   config = RunTimeConfig()
   config.dataset.dataset_name = "MultimodalConcatSlideDataset"
   config.dataset.dataset_kwargs = {
-    "modality_paths": {"HE": HE_SLIDE_BASE, "CD20": CD20_SLIDE_BASE},
-    "modality_names": ["HE", "CD20"],
+    "data_root": SLIDE_FEAT_ROOT,
+    "modality_names": STAINS,
     "allow_missing_modalities": True,
     "allowed_sample_keys": common_keys,
     "labels_csv": LABELS_CSV,
@@ -38,14 +40,13 @@ def make_config(common_keys) -> RunTimeConfig:
 
 
 def main():
-  intersection_bases = [HE_SLIDE_BASE, CD20_SLIDE_BASE, CD3_SLIDE_BASE]
-  common_keys = find_common_sample_keys(intersection_bases)
-  print(f"公共样本数（HE ∩ CD20）: {len(common_keys)}")
+  common_keys = find_common_sample_keys(SLIDE_FEAT_ROOT, INTERSECTION_STAINS)
+  print(f"公共样本数（{' ∩ '.join(INTERSECTION_STAINS)}）: {len(common_keys)}")
 
   config = make_config(common_keys)
   results = run_condition(CONDITION_NAME, config, N_RUNS, K_FOLDS, output_dir=OUTPUTS_DIR)
   log_results({CONDITION_NAME: results}, SHARED_LOG_FILE, config=config,
-              sample_intersection=modality_names(intersection_bases))
+              stains=INTERSECTION_STAINS)
 
 
 if __name__ == "__main__":
