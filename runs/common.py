@@ -239,3 +239,4 @@ def log_results(
   with open(log_path, "a", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
   print(f"结果已追加记录至: {log_path}")
+

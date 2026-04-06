@@ -164,10 +164,11 @@ class CrossValidator(Strategy, TrainingMixin):
     ckpt_path = os.path.join(self.logging_cfg.save_dir, f'model_fold_{fold}_best.pth')
     early_stopping = EarlyStopping(self.training_cfg.patience, model, ckpt_path)
 
-    # (5) Run training loop
+    # (5) Run training loop (with TensorBoard logging)
+    tb_dir = os.path.join(self.logging_cfg.save_dir, f"fold_{fold}")
     self._run_train_val_loop(
       model, criterion, optimizer, early_stopping,
-      train_loader, val_loader, label=f"fold_{fold}",
+      train_loader, val_loader, label=f"fold_{fold}", log_dir=tb_dir,
     )
 
     # (6) Restore best weights and evaluate on test set

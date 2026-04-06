@@ -12,13 +12,14 @@ Dependencies that concrete classes must set in __init__:
 
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from ..training_utils import (
@@ -48,8 +49,15 @@ class TrainingMixin:
     train_loader: DataLoader,
     val_loader: DataLoader,
     label: str = '',
+    log_dir: Optional[str] = None,
   ) -> None:
-    """Epoch loop until early stopping. EarlyStopping saves checkpoint on improvement."""
+    """Epoch loop until early stopping. EarlyStopping saves checkpoint on improvement.
+
+    Args:
+      log_dir: if provided, writes TensorBoard events to this directory.
+    """
+    writer = SummaryWriter(log_dir) if log_dir else None
+
     if self.training_cfg.scheduler == 'cosine':
       scheduler = CosineAnnealingLR(optimizer, T_max=self.training_cfg.epochs)
     else:
@@ -62,6 +70,12 @@ class TrainingMixin:
         val_loss, val_acc, val_auc, _ = self._evaluate_with_auc(model, val_loader, criterion)
         if scheduler:
           scheduler.step()
+
+        # TensorBoard logging
+        if writer:
+          writer.add_scalar('Loss/train', train_loss, epoch)
+          writer.add_scalar('Loss/val', val_loss, epoch)
+          writer.add_scalar('AUC/val', val_auc, epoch)
 
         should_stop = early_stopping.step(val_auc, epoch + 1)
 
@@ -76,6 +90,9 @@ class TrainingMixin:
         if should_stop:
           tqdm.write(f"  Early stop @ epoch {epoch+1}, best={early_stopping.best_epoch}")
           break
+
+    if writer:
+      writer.close()
 
   def _train_epoch(
     self,

@@ -32,7 +32,16 @@ To add a new distillation method:
 2. Create `runs/run_<method>.py`
 3. No changes to `trainer.py`
 
-## 5. Decided
+## 5. Experiment Tracking
+`distillation/runs/` maintains its own tracking, separate from `runs/`:
+
+| File | Purpose | Maintained by |
+|------|---------|---------------|
+| `runs/PLAN.md` | Goal, results summary, key findings, next steps, decisions | Human (or Claude) manually |
+| `runs/results_log.txt` | Detailed append-only log with full config info | `log_results()` auto-appends |
+
+## 6. Decided
 - Teacher checkpoints are fold-specific; `execute()` loads and verifies fold splits each fold.
 - `DistillationLoss` is the single extension point for new methods — trainer delegates all loss computation to it.
 - **Teacher manifest is the formal interface between PathoML training and distillation.** Distillation scripts must call `load_manifest()` to obtain teacher configuration (fold params, modality paths, checkpoint template). If the manifest does not exist, `load_manifest()` raises `FileNotFoundError` with instructions to run the teacher training first.
+- **Experiment tracking is separate from `runs/`.** Teacher selection and distillation have different schemas (stain combos vs loss/student config), so each maintains its own `PLAN.md` and `results_log.txt`.

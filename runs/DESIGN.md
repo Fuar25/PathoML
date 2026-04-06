@@ -18,3 +18,10 @@ For AUC results across different scripts to be directly comparable (same fold sp
 
 ## 4. Teacher Manifest
 `run_condition()` automatically writes `manifest.json` into the condition output directory after training completes. The manifest records fold parameters (`n_runs`, `k_folds`, `base_seed`), modality configuration (`modality_names`, `modality_paths`), model info, and a relative checkpoint path template. Downstream consumers (e.g. `distillation/`) load this manifest to inherit teacher configuration, eliminating manual parameter alignment.
+
+## 5. Experiment Tracking
+
+| File | Purpose | Maintained by |
+|------|---------|---------------|
+| `PLAN.md` | Goal, results summary, key findings, next steps, decisions | Human (or Claude) manually |
+| `results_log.txt` | Detailed append-only log with full config info | `log_results()` auto-appends |

@@ -72,3 +72,13 @@ Each package and module can have an associated DESIGN.md file:
 
 ## 5. Metric Calculation
 For pathology-like medical image classification tasks, the metric should be calculated at the patient level, not the patch or tissue level.
+
+## 6. Experiment Tracking
+Teacher selection (`runs/`) and distillation (`distillation/runs/`) each maintain **independent** experiment tracking with the same two-file pattern:
+
+| File | Purpose | Maintained by |
+|------|---------|---------------|
+| `PLAN.md` | Current goal, results summary, next steps, decisions | Human (or Claude) manually |
+| `results_log.txt` | Detailed append-only log with full config info | `log_results()` auto-appends |
+- When the user asks about experiment status or next steps, read the relevant `PLAN.md` first.
+- When the user completes a round of experiments, offer to update `PLAN.md` with new findings and revised next steps.
