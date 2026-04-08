@@ -44,7 +44,12 @@ class StudentBasicABMIL(nn.Module):
     encoded = self.encoder(patches)                       # (B, N, hidden_dim)
     bag_embeddings, attention = self.aggregator(encoded, mask=mask)
     logits = self.classifier(bag_embeddings)              # (B, 1)
-    out = {'hidden': bag_embeddings, 'logits': logits, 'attention': attention}
+    out = {'hidden': bag_embeddings, 'logits': logits, 'attention': attention,
+           'attn_logits': self.aggregator.last_logits,    # (B, N) softmax 前
+           'encoded': encoded}                            # (B, N, hidden_dim)
+    if mask is not None:
+      out['mask'] = mask                                  # (B, N)
     if self.proj_head is not None:
-      out['proj'] = self.proj_head(bag_embeddings)
+      out['proj'] = self.proj_head(bag_embeddings)        # (B, proj_dim)
+      out['encoded_proj'] = self.proj_head(encoded)       # (B, N, proj_dim)
     return out

@@ -1,47 +1,46 @@
 # distillation
 
 ## 1. Purpose
-Cross-modal knowledge distillation: transfer multi-modal slide-level teacher knowledge into a unimodal HE patch-level student.
+Distillation is a research subsystem that transfers teacher knowledge into HE-only student models while reusing the shared PathoML runtime where possible.
 
-This module is in **growth and testing phase** — it lives under `scripts/` because its architecture is not yet stable enough to be part of the core library. As patterns solidify, stable components may graduate into `PathoML/`.
+## 2. Scope / Owns
+This subsystem owns:
+- distillation dataset assembly
+- distillation loss implementations
+- student models
+- teacher checkpoint adapters/loaders
+- distillation trainer extension
+- distillation experiment entry points
 
-## 2. Architecture
+This subsystem does not own:
+- teacher concrete datasets or models
+- shared training strategies
+- shared dataset utilities or model primitives
 
-Teacher (frozen, multi-modal slide embedding → MLP) and student (HE patches → ABMIL) have **different inputs and different architectures**. This is cross-modal distillation, not standard model compression.
+## 3. Public Contracts
+- `distillation.dataset.DistillationDataset`
+- `distillation.runtime.TeacherManifest`
+- `distillation.losses.DistillationLoss`
+- `distillation.runtime.DistillCrossValidator`
 
-```
-Teacher: slide_concat (B, D_slide) → TeacherMLP → hidden (B,256) + logit (B,1)
-Student: he_patches  (B, N, D_patch) → StudentABMIL → hidden (B,256) + logits (B,1)
-```
+The subsystem consumes teacher artifacts through:
+- `manifest.json`
+- fold checkpoint metadata (`fold`, `train_fold`, `test_fold`, and optional extra metadata)
 
-## 3. Module Structure
+## 4. Invariants
+- Distillation consumes teacher artifacts, not teacher experiment internals.
+- Distillation reuses the shared `CrossValidator` instead of maintaining a separate full runtime.
+- Fold-split verification remains mandatory at runtime before teacher checkpoints are trusted.
 
-| File | Purpose |
-|------|---------|
-| `losses.py` | `DistillationLoss` ABC + `StandardKDLoss` implementation |
-| `trainer.py` | `DistillCrossValidator(CrossValidator)` — accepts any `DistillationLoss` |
-| `dataset.py` | `DistillationDataset` — loads HE patches + multi-modal slide embeddings; reuses `find_common_sample_keys` and `PATIENT_ID_PATTERN` from PathoML |
-| `manifest.py` | `TeacherManifest` dataclass + `load_manifest()` — reads teacher `manifest.json` |
-| `models/student.py` | `StudentABMIL` — ABMIL on HE patches |
-| `models/teacher.py` | `TeacherMLP` — loads frozen PathoML MLP checkpoint |
-| `runs/` | Experiment scripts, one per distillation method |
+## 5. Change Rules
+- Keep shared logic in `PathoML` unless it is distillation-specific.
+- Put experiment-state updates in `distillation/experiments/PLAN.md`.
+- If the teacher artifact contract changes, update this file and `distillation/runtime/DESIGN.md`.
 
-## 4. Extension Point
-To add a new distillation method:
-1. Implement `DistillationLoss` in `losses.py`
-2. Create `runs/run_<method>.py`
-3. No changes to `trainer.py`
+## Decided
+- Distillation remains a peer subsystem to teacher, not a subfolder of teacher.
+- Teacher manifest loading is the formal entry point for teacher configuration inheritance.
+- Distillation owns package-level `dataset/`, `losses/`, and `runtime/` areas because these are growing subsystem boundaries.
 
-## 5. Experiment Tracking
-`distillation/runs/` maintains its own tracking, separate from `runs/`:
-
-| File | Purpose | Maintained by |
-|------|---------|---------------|
-| `runs/PLAN.md` | Goal, results summary, key findings, next steps, decisions | Human (or Claude) manually |
-| `runs/results_log.txt` | Detailed append-only log with full config info | `log_results()` auto-appends |
-
-## 6. Decided
-- Teacher checkpoints are fold-specific; `execute()` loads and verifies fold splits each fold.
-- `DistillationLoss` is the single extension point for new methods — trainer delegates all loss computation to it.
-- **Teacher manifest is the formal interface between PathoML training and distillation.** Distillation scripts must call `load_manifest()` to obtain teacher configuration (fold params, modality paths, checkpoint template). If the manifest does not exist, `load_manifest()` raises `FileNotFoundError` with instructions to run the teacher training first.
-- **Experiment tracking is separate from `runs/`.** Teacher selection and distillation have different schemas (stain combos vs loss/student config), so each maintains its own `PLAN.md` and `results_log.txt`.
+## TODO
+1. Revisit a dedicated distillation runtime only if reuse of `CrossValidator` becomes a real constraint.

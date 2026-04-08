@@ -1,38 +1,29 @@
-# distillation/runs/common.py — 蒸馏实验公共基础设施，供所有蒸馏脚本共用。
-#
-# 包含：路径设置、PathoML/distillation 导入、数据路径常量、超参数默认值、工具函数。
-# 每个 run_*.py 只需 from common import ... 即可使用。
+"""Shared infrastructure for distillation experiments."""
 
 import os
-import sys
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 
-# (1) 路径设置：确保 distillation/ 和 PathoML/ 可被 import
-_DISTILL_ROOT = os.path.join(os.path.dirname(__file__), '..')
-_PROJECT_ROOT = os.path.join(_DISTILL_ROOT, '..')
-sys.path.insert(0, os.path.abspath(_DISTILL_ROOT))
-sys.path.insert(0, os.path.abspath(_PROJECT_ROOT))
-
-# (2) re-export: 供 run 脚本直接 import，无需自行设置路径
 from PathoML.config.config import RunTimeConfig
-from PathoML.dataset.utils import find_common_sample_keys
+from PathoML.dataset.utils import find_common_sample_keys, fingerprint_sample_keys
 from PathoML.optimization.trainer import Trainer
 
-from dataset import DistillationDataset
-from manifest import load_manifest
-from models.student import StudentTransABMIL
-from trainer import DistillCrossValidator
+from distillation.dataset import DistillationDataset
+from distillation.models.student import StudentTransABMIL
+from distillation.runtime import DistillCrossValidator, load_manifest
 
 
-# ─── 数据路径 ────────────────────────────────────────────────────────────────
+# ─── Data roots ──────────────────────────────────────────────────────────────
 
-PATCH_FEAT_ROOT = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Flat/GigaPath-Patch-Feature'
-LABELS_CSV = '/mnt/5T/GML/Tiff/Experiments/Experiment2/GigaPath-Flat/labels.csv'
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PATCH_FEAT_ROOT = str(PROJECT_ROOT / 'Features' / 'GigaPath-Patch-Feature')
+SLIDE_FEAT_ROOT = str(PROJECT_ROOT / 'Features' / 'GigaPath-Slide-Feature')
+LABELS_CSV = str(PROJECT_ROOT / 'Features' / 'labels.csv')
 
 
-# ─── 超参数默认值 ─────────────────────────────────────────────────────────────
+# ─── Default hyperparameters ────────────────────────────────────────────────
 
 EPOCHS     = 100
 PATIENCE   = 10
@@ -47,39 +38,61 @@ STUDENT_KWARGS = dict(
 )
 
 
-# ─── 路径配置 ─────────────────────────────────────────────────────────────────
+# ─── Output paths ───────────────────────────────────────────────────────────
 
 OUTPUTS_DIR     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs')
 SHARED_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results_log.txt')
 
 
-# ─── 工具函数 ─────────────────────────────────────────────────────────────────
+# ─── Helpers ────────────────────────────────────────────────────────────────
+
+def format_condition_value(value: int | float | str) -> str:
+  """Format a value for descriptive condition names.
+
+  Distillation experiment names use lowercase snake case with full words.
+  Decimal points are encoded as `p` so output directories remain shell-friendly.
+  """
+  return str(value).replace('-', 'minus_').replace('.', 'p')
+
+
+def default_teacher_manifest_path(condition_name: str) -> str:
+  """Return the default teacher manifest path for a named teacher condition."""
+  return str(PROJECT_ROOT / 'teacher' / 'experiments' / 'outputs' / condition_name / 'manifest.json')
+
 
 def load_distill_dataset(
   manifest,
   patch_root: str = PATCH_FEAT_ROOT,
+  slide_root: str = SLIDE_FEAT_ROOT,
   labels_csv: str = LABELS_CSV,
   intersection_stains: list[str] | None = None,
 ) -> tuple[DistillationDataset, list[str]]:
-  """从 manifest 加载蒸馏数据集。
+  """Build the distillation dataset from a teacher manifest.
 
   Args:
-    intersection_stains: 样本交集所用染色列表。None 时自动从 manifest 推导。
+    slide_root: Root directory for slide-level features.
+    intersection_stains: Stains used to compute the shared sample intersection.
+      If `None`, use the teacher manifest modalities.
 
   Returns:
     (dataset, intersection_stains)
   """
   print('Loading dataset...')
-  slide_root = manifest.data_root
 
   if intersection_stains is None:
     intersection_stains = list(manifest.modality_names)
 
-  # Patch root 只取 HE，slide root 取所有 intersection_stains
+  # Patch features are HE-only. Slide features follow the manifest modalities.
   patch_keys = find_common_sample_keys(patch_root, ['HE'])
   slide_keys = find_common_sample_keys(slide_root, intersection_stains)
   common_keys = patch_keys & slide_keys
-  print(f'  公共样本数（HE_patch ∩ slide({" ∩ ".join(intersection_stains)})）: {len(common_keys)}')
+  print(f'  Shared sample count (HE patch ∩ slide({" ∩ ".join(intersection_stains)})): {len(common_keys)}')
+  common_fingerprint = fingerprint_sample_keys(common_keys)
+  if manifest.sample_set_fingerprint and manifest.sample_set_fingerprint != common_fingerprint:
+    raise ValueError(
+      "Teacher manifest sample set does not match the distillation dataset intersection. "
+      f"manifest={manifest.sample_set_fingerprint}, distillation={common_fingerprint}"
+    )
 
   dataset = DistillationDataset(
     patch_root=patch_root,
@@ -99,10 +112,17 @@ def run_distill_cv(
   teacher_ckpt_tmpl: str,
   k_folds: int,
   student_kwargs: dict = STUDENT_KWARGS,
+  student_builder=None,
 ) -> tuple[list[float], list[float]]:
-  """运行一次 K 折蒸馏 CV，返回 (fold_aucs, fold_f1s)。"""
+  """Run one K-fold distillation CV pass and return `(fold_aucs, fold_f1s)`.
+
+  Args:
+    student_builder: Optional student factory. Defaults to `StudentTransABMIL`.
+  """
+  if student_builder is None:
+    student_builder = lambda: StudentTransABMIL(**student_kwargs)
   cv = DistillCrossValidator(
-    student_builder   = lambda: StudentTransABMIL(**student_kwargs),
+    student_builder   = student_builder,
     dataset           = dataset,
     config            = config,
     distill_loss      = distill_loss,
@@ -123,8 +143,12 @@ def run_condition(
   dataset: DistillationDataset,
   student_kwargs: dict = STUDENT_KWARGS,
   output_dir: str = OUTPUTS_DIR,
+  student_builder=None,
 ) -> dict:
-  """对一个条件运行 manifest.n_runs 次 CV，收集 AUC 和 F1 数据。
+  """Run `manifest.n_runs` CV passes for one named condition.
+
+  Args:
+    student_builder: Optional student factory. Defaults to `StudentTransABMIL`.
 
   Returns:
     dict with keys: run_means, all_fold_aucs, run_f1_means, all_fold_f1s
@@ -146,7 +170,8 @@ def run_condition(
     print(f"\n[{condition_name}] Run {i+1}/{manifest.n_runs}  (seed={seed})")
 
     fold_aucs, fold_f1s = run_distill_cv(
-      dataset, config, distill_loss, tmpl, manifest.k_folds, student_kwargs,
+      dataset, config, distill_loss, tmpl, manifest.k_folds,
+      student_kwargs, student_builder,
     )
 
     run_mean = float(np.mean(fold_aucs))
@@ -175,15 +200,17 @@ def log_results(
   student_kwargs: dict = STUDENT_KWARGS,
   stains: list[str] | None = None,
 ) -> None:
-  """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
+  """Append a timestamped AUC/F1 summary table to the shared experiment log."""
+  condition_width = 88
   sep  = "=" * 100
   hsep = "─" * 100
   lines = [
     sep,
     f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]  "
-    f"条件: {', '.join(results.keys())}",
+    f"conditions: {', '.join(results.keys())}",
     hsep,
-    f"{'条件':<28}  {'run-level AUC (mean±std)':<28}  {'fold-level AUC (mean±std)':<28}  fold-level F1 (mean±std)",
+    f"{'condition':<{condition_width}}  {'run-level AUC (mean±std)':<28}  "
+    f"{'fold-level AUC (mean±std)':<28}  fold-level F1 (mean±std)",
     hsep,
   ]
   for name, data in results.items():
@@ -192,7 +219,7 @@ def log_results(
     fold_f1s  = np.array(data.get("all_fold_f1s", []))
     f1_str = f"{fold_f1s.mean():.4f} ± {fold_f1s.std():.4f}" if len(fold_f1s) > 0 else "N/A"
     lines.append(
-      f"{name:<28}  "
+      f"{name:<{condition_width}}  "
       f"{run_means.mean():.4f} ± {run_means.std():.4f}              "
       f"{fold_aucs.mean():.4f} ± {fold_aucs.std():.4f}              "
       f"{f1_str}"
@@ -200,7 +227,7 @@ def log_results(
 
   lines.append(hsep)
   if stains:
-    lines.append(f"样本交集: {' ∩ '.join(stains)}")
+    lines.append(f"shared sample intersection: {' ∩ '.join(stains)}")
   if manifest:
     lines.append(f"teacher: {manifest.condition_name}")
     lines.append(f"teacher_modalities: {', '.join(manifest.modality_names)}")
@@ -226,5 +253,4 @@ def log_results(
   os.makedirs(os.path.dirname(log_path), exist_ok=True)
   with open(log_path, "a", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
-  print(f"结果已追加记录至: {log_path}")
-
+  print(f"Results appended to: {log_path}")
