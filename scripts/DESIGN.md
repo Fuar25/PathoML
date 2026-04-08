@@ -1,24 +1,31 @@
-# PathoML/scripts
+# scripts
 
 ## 1. Purpose
-Rapid experiment validation, one-off analyses, and ad-hoc deliverables. Scripts call the core library (`data/`, `models/`, `optimization/`) but are **not part of the library itself**. The file itself should be independent and self-contained, with no shared state or dependencies on other scripts.
+Miscellaneous repository tooling that does not belong to the shared foundation or to either research subsystem.
 
-## 2. Rules
-- Scripts may import from `data/`, `models/`, `optimization/`, `config/` freely.
-- Core library code must **never** import from `scripts/`.
-- Scripts are not versioned as library APIs — they can be modified or deleted without a deprecation notice.
-- No shared state between scripts; each script is self-contained.
-- Each script should have a clear description of its purpose and pseudocode indicating its workflow based on the core library APIs on the top of the file by comments.
-- There will be no unit test so the code itself should be as clear and readable as possible, following best practices for code clarity and maintainability such as Clean Code principles.
-- Main Library may update APIs fast, so scripts should add some necessary abstracted wrapper to decouple from the main library as possible.
+## 2. Scope / Owns
+This directory owns:
+- one-off migration or maintenance scripts
+- repository-local tooling helpers
 
-## 3. Current Contents
+It does not own:
+- teacher experiments
+- distillation experiments
+- shared runtime contracts
 
-| Path | Purpose |
-|------|---------|
-| `hpo_search.py` | Bayesian hyperparameter search (Optuna) |
-| `multi_stain_fusion.py` | Multi-stain feature fusion experiment |
-| `custom_voting/` | Voting ensemble post-processing |
-| `multimodal_fusion/` | Multi-modal fusion experiments |
-| `preprocess/` | Feature extraction and WSI list preparation |
-| `utils/` | Shared script utilities |
+## 3. Public Contracts
+- No stable public API is promised for this directory.
+- Scripts may depend on repository internals, but core packages must not depend on `scripts/`.
+
+## 4. Invariants
+- `scripts/` is not part of the core system narrative.
+- Code here may be pragmatic, but it must not become an implicit dependency of `PathoML`, `teacher`, or `distillation`.
+
+## 5. Change Rules
+- If a script becomes part of a stable subsystem workflow, move it into that subsystem.
+
+## Decided
+- `scripts/` is a misc tooling zone only.
+
+## TODO
+1. Move any script that becomes stable and reusable into the appropriate subsystem.

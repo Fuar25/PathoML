@@ -1,35 +1,45 @@
 # PathoML
 
 ## 1. Purpose
-Core library for WSI (Whole Slide Image) MIL (Multiple Instance Learning) classification. Provides data loading, model architectures, training orchestration, and configuration — isolated from scripts, experiments, and examples.
+PathoML is the shared pathology foundation for this repository. It provides the reusable contracts, utilities, and training runtime used by multiple research subsystems.
 
-## 2. Package Structure
+## 2. Scope / Owns
+PathoML owns:
+- `interfaces.py`
+- `registry.py`
+- `config/`
+- `optimization/`
+- shared dataset utilities and base classes
+- shared model primitives
 
-| Package / Module | Responsibility |
-|---------|---------------|
-| `interfaces.py` | Library-level ABCs: `BaseDataset`, `BaseModel`, `BaseMIL`, `Aggregator`, `Classifier` |
-| `registry.py` | Plugin registry and factory: `register_model`, `register_dataset`, `create_model`, `load_all_module` |
-| `config/` | Typed runtime configuration dataclasses |
-| `dataset/` | Dataset implementations (unimodal, multimodal) |
-| `models/` | MIL model architectures (ABMIL, LinearProbe) |
-| `optimization/` | Training strategies, patient aggregation |
+PathoML does not own:
+- teacher concrete datasets or models
+- teacher experiment orchestration
+- distillation-specific datasets, losses, students, or experiments
 
-## 3. Dependency Order
-```
-interfaces.py            ← no internal deps (base contracts)
-registry.py              ← no internal deps
-config/                  ← no internal deps
-dataset/                 ← config/, interfaces, registry
-models/                  ← interfaces, registry
-optimization/trainer     ← config/, interfaces, registry
-```
+## 3. Public Contracts
+- `PathoML.interfaces`: shared dataset/model contracts
+- `PathoML.registry`: registry/factory APIs and the core loader
+- `PathoML.config.config`: runtime dataclasses
+- `PathoML.dataset`: shared dataset bases and utility functions
+- `PathoML.models`: shared model primitives
+- `PathoML.optimization.trainer`: `Trainer`, `CrossValidator`, and `FullDatasetTrainer`
 
-## 4. Code Conventions
-- Follow Clean Code's best practices as much as possible.
+## 4. Invariants
+- PathoML must stay usable without importing `teacher` or `distillation`.
+- Shared contracts live here once they are reused by more than one subsystem.
+- Teacher and distillation interact through artifact contracts, not through experiment-level imports.
 
+## 5. Change Rules
+- Add code here only if it is genuinely shared across subsystems.
+- If a component is teacher-only, keep it in `teacher/`.
+- If a component is distillation-only, keep it in `distillation/`.
+- When a shared interface changes, update the nearest package `DESIGN.md` in the same turn.
 
 ## Decided
-- Core library lives in `PathoML/`; scripts, examples, tests remain at project root.
-- `interfaces.py` and `registry.py` live at `PathoML/` root (library-level, not optimization-specific).
-- Internal cross-package imports use relative paths (e.g. `from ..config.defaults import`).
-- External consumers use absolute paths (e.g. `from PathoML.config.config import RunTimeConfig`).
+- PathoML is a shared foundation, not the teacher framework.
+- Shared dataset scanning, sample-key handling, and collate logic stay in PathoML.
+- Shared ABMIL building blocks stay in PathoML even though teacher owns the concrete `ABMIL` model.
+
+## TODO
+1. Consider a future interpretability subsystem once a stable shared contract emerges.

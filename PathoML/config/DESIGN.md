@@ -1,40 +1,48 @@
 # PathoML/config
 
 ## 1. Purpose
-Typed configuration dataclasses for all runtime parameters. No logic — just structured data.
+Typed runtime configuration dataclasses for shared training flows.
 
-## 2. Dataclasses
+## 2. Scope / Owns
+This package owns:
+- `DatasetConfig`
+- `ModelConfig`
+- `TrainingConfig`
+- `LoggingConfig`
+- `RunTimeConfig`
+- cross-subsystem default constants in `defaults.py`
 
-| Class | Fields |
-|-------|--------|
-| `DatasetConfig` | `dataset_name`, `dataset_module_paths`, `dataset_kwargs`, `patient_id_pattern`, `binary_mode` |
-| `ModelConfig` | `model_name`, `model_module_paths`, `model_kwargs`, `input_dim`, `hidden_dim`, `num_classes`, `dropout` |
-| `TrainingConfig` | `epochs`, `batch_size`, `learning_rate`, `weight_decay`, `seed`, `device`, `patience`, `patient_threshold` |
-| `LoggingConfig` | `save_dir`, `save_best_only` |
-| `RunTimeConfig` | Composes the four above |
+## 3. Public Contracts
+- `DatasetConfig`
+  - `dataset_name`
+  - `dataset_module_paths`
+  - `dataset_kwargs`
+  - `patient_id_pattern`
+- `ModelConfig`
+  - `model_name`
+  - `model_module_paths`
+  - `model_kwargs`
+- `TrainingConfig`
+  - shared training hyperparameters and runtime device
+- `LoggingConfig`
+  - save directory and checkpoint behavior
+- `RunTimeConfig`
+  - top-level composition of the four sections above
 
-## 3. Extension Convention
-Model-specific parameters (e.g. `gated`, `attention_dim`, `n_heads`) and strategy-specific parameters (e.g. `k_folds`) do **not** belong in config dataclasses.
-- Model-specific → `ModelConfig.model_kwargs` dict, passed to `create_model()` and filtered by the model's signature
-- Strategy-specific → constructor arguments of the strategy class (e.g. `CrossValidator(..., k_folds=5)`)
+## 4. Invariants
+- Config dataclasses contain runtime data, not training logic.
+- Strategy-specific parameters stay on strategy constructors, not in config dataclasses.
+- Model-specific kwargs stay in `model_kwargs`.
+- Dataset-specific kwargs stay in `dataset_kwargs`.
 
-`dataset_module_paths` / `model_module_paths` are **empty by default** — all built-ins are auto-loaded by `load_runtime_plugins`. Only set these fields to register user-defined extensions:
-```python
-config.model.model_module_paths = ['my_project.my_custom_model']
-```
-
-## 4. Usage
-```python
-from PathoML.config.config import RunTimeConfig
-
-config = RunTimeConfig()               # instantiate directly — no singleton
-config.training.device = "cuda:0"
-config.model.model_kwargs = {"gated": True, "attention_dim": 128}
-```
+## 5. Change Rules
+- Add fields only when they are shared and stable across callers.
+- Keep per-experiment one-off knobs out of the shared config layer.
+- If a new field changes how factories or strategies are invoked, update the corresponding design docs.
 
 ## Decided
-- No module-level singleton (`runtime_config = RunTimeConfig()` was removed). Rationale: avoids shared mutable state across experiments and makes each run self-contained.
-- `defaults.py` holds only string/numeric constants (`PATIENT_ID_PATTERN`, etc.), imported by both config and data packages.
+- `RunTimeConfig` is instantiated directly; there is no global singleton.
+- `defaults.py` holds shared constants used by multiple packages.
 
 ## TODO
-1. Interpretability config: add `InterpretabilityConfig` (output paths for CSV, figures) once the `interpretability/` module is built.
+1. Add new config sections only after a stable shared subsystem requires them.

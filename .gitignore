@@ -42,9 +42,10 @@ Thumbs.db
 *.pth
 *.ckpt
 
-# ─── 实验输出 ─────────────────────────────────────────────────────────────────
-experiments/
+# ─── Experiment Outputs ─────────────────────────────────────────────────────
 .experiments/
+teacher/experiments/outputs/
+distillation/experiments/outputs/
 
 # ─── CI / 版本控制平台配置 ────────────────────────────────────────────────────
 .github/
@@ -54,6 +55,4 @@ scripts/*
 !scripts/DESIGN.md
 !scripts/utils/
 
-runs/outputs/*
-distillation/runs/outputs/*
 Features
