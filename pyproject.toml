@@ -1,0 +1,31 @@
+[project]
+name = "pathoml"
+version = "0.1.0"
+description = "PyTorch framework for WSI classification in computational pathology"
+requires-python = ">=3.10"
+dependencies = [
+  "torch>=2.0,<2.11",
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "h5py",
+  "tqdm",
+  "pyyaml",
+  "tensorboard",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["PathoML"]
+
+[tool.uv]
+index-url = "https://pypi.org/simple"
+extra-index-url = ["https://download.pytorch.org/whl/cu124"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
