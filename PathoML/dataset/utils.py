@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import hashlib
 from typing import Dict, List, Optional, Set, Tuple
 
 import torch
@@ -183,3 +184,9 @@ def find_common_sample_keys(
   for keys in per_stain_keys[1:]:
     result = result & keys
   return result
+
+
+def fingerprint_sample_keys(sample_keys: Set[Tuple[str, str]]) -> str:
+  """Return a stable fingerprint for a sample-key set."""
+  payload = '\n'.join(f'{patient_id}|{tissue_id}' for patient_id, tissue_id in sorted(sample_keys))
+  return hashlib.sha256(payload.encode('utf-8')).hexdigest()

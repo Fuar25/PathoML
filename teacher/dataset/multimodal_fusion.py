@@ -1,4 +1,4 @@
-"""Slide-level multimodal fusion (weighted mean) dataset."""
+"""Teacher dataset: multimodal slide fusion features."""
 
 from __future__ import annotations
 
@@ -6,26 +6,14 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import torch
 
-from ...registry import register_dataset
-from ...config.defaults import PATIENT_ID_PATTERN
-from ._base import _MultimodalSlideBase
+from PathoML.config.defaults import PATIENT_ID_PATTERN
+from PathoML.dataset.base import MultimodalSlideDatasetBase
+from PathoML.registry import register_dataset
 
 
 @register_dataset('MultimodalFusionSlideDataset')
-class MultimodalFusionSlideDataset(_MultimodalSlideBase):
-  """Slide-level multimodal fusion dataset via weighted mean.
-
-  Fuses modality feature vectors by weighted mean, preserving feature dim D:
-      (1, D), (1, D) → (1, D)
-
-  Usage:
-      dataset = MultimodalFusionSlideDataset(
-          data_root='/data/Slide',
-          modality_names=['HE', 'CD20'],
-          fusion_weights={'HE': 0.6, 'CD20': 0.4},
-          labels_csv='labels.csv',
-      )
-  """
+class MultimodalFusionSlideDataset(MultimodalSlideDatasetBase):
+  """Slide-level multimodal fusion dataset for teacher experiments."""
 
   def __init__(
     self,
@@ -38,17 +26,15 @@ class MultimodalFusionSlideDataset(_MultimodalSlideBase):
     verbose: bool = True,
     allowed_sample_keys: Optional[Set[Tuple[str, str]]] = None,
   ) -> None:
-    # Normalize weights before calling super().__init__ so verbose print can use them
     total = sum(fusion_weights.values())
     self.fusion_weights = {k: v / total for k, v in fusion_weights.items()}
-
     super().__init__(
       data_root=data_root,
       modality_names=modality_names,
       labels_csv=labels_csv,
       patient_id_pattern=patient_id_pattern,
       allow_missing_modalities=allow_missing_modalities,
-      verbose=False,  # suppress base print; we print below with extra info
+      verbose=False,
       allowed_sample_keys=allowed_sample_keys,
     )
     if verbose:
@@ -61,23 +47,20 @@ class MultimodalFusionSlideDataset(_MultimodalSlideBase):
     item = self.samples[idx]
     sample_key = item['sample_key']
     loaded_features, loaded_coords = self._load_modality_features(sample_key)
-
     if not loaded_features:
       raise RuntimeError(f"No modality features loaded for sample {sample_key}")
 
-    # Weighted mean over available modalities (re-normalize if some are missing)
     available = [m for m in self.modality_names if m in loaded_features]
     avail_weights = {m: self.fusion_weights.get(m, 1.0) for m in available}
     total_w = sum(avail_weights.values())
     normalized = {m: w / total_w for m, w in avail_weights.items()}
 
     fused: Optional[torch.Tensor] = None
-    for m in available:
-      weighted = normalized[m] * loaded_features[m]
+    for modality_name in available:
+      weighted = normalized[modality_name] * loaded_features[modality_name]
       fused = weighted if fused is None else fused + weighted
 
-    features: torch.Tensor = fused  # type: ignore[assignment]
-
+    features = fused
     coords = loaded_coords.get(available[0]) if available else None
     if coords is None:
       coords = torch.zeros(features.shape[0], 2, dtype=torch.float32)
@@ -88,11 +71,11 @@ class MultimodalFusionSlideDataset(_MultimodalSlideBase):
       else torch.tensor(item['label']).long()
     )
     return {
-      'features':   features,
-      'coords':     coords,
-      'label':      label_tensor,
-      'slide_id':   f"{sample_key[0]}{sample_key[1]}",
+      'features': features,
+      'coords': coords,
+      'label': label_tensor,
+      'slide_id': f"{sample_key[0]}{sample_key[1]}",
       'patient_id': item['patient_id'],
-      'tissue_id':  item['tissue_id'],
+      'tissue_id': item['tissue_id'],
       'modalities': available,
     }

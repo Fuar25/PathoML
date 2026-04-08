@@ -152,33 +152,31 @@ def model_builder_from_config(cfg: Any, dataset: Any) -> Callable[[], Any]:
   return lambda: create_model(cfg.model_name, **kwargs)
 
 
-# Built-in modules auto-loaded on every run. Add new built-ins here.
-_BUILTIN_DATASET_MODULES = [
-  'PathoML.dataset.SlideDataset',
-  'PathoML.dataset.PatchDataset',
-]
-_BUILTIN_MODEL_MODULES = [
-  'PathoML.models.abmil',
-  'PathoML.models.linear_probe',
-]
+# Core built-ins are intentionally narrow. Teacher/distillation concrete modules
+# are loaded by their own subsystems.
+_CORE_DATASET_MODULES: list[str] = []
+_CORE_MODEL_MODULES: list[str] = []
 
 
-def load_all_module(config: Any) -> None:
-  """Import built-in modules and any user-specified extension modules.
+def load_core_modules(config: Any) -> None:
+  """Import core built-ins and any user-specified extension modules.
 
-  Built-ins are always loaded. User extensions are appended via
+  Core built-ins are always loaded. User extensions are appended via
   config.dataset.dataset_module_paths / config.model.model_module_paths.
 
   Args:
       config: RunTimeConfig with optional dataset_module_paths / model_module_paths
               for user-defined extensions.
   """
-  # (1) Always load built-ins
-  for module_path in _BUILTIN_DATASET_MODULES + _BUILTIN_MODEL_MODULES:
+  for module_path in _CORE_DATASET_MODULES + _CORE_MODEL_MODULES:
     importlib.import_module(module_path)
 
-  # (2) Load user extensions (empty by default)
   for module_path in getattr(config.dataset, 'dataset_module_paths', []) or []:
     importlib.import_module(module_path)
   for module_path in getattr(config.model, 'model_module_paths', []) or []:
     importlib.import_module(module_path)
+
+
+def load_all_module(config: Any) -> None:
+  """Backward-compatible alias for the core module loader."""
+  load_core_modules(config)

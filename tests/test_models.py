@@ -1,10 +1,10 @@
-"""Tests for ABMIL and LinearProbe forward passes using synthetic tensors (CPU-only)."""
+"""Tests for teacher concrete models using synthetic tensors (CPU-only)."""
 
 import pytest
 import torch
 
-from PathoML.models.abmil import ABMIL
-from PathoML.models.linear_probe import LinearProbe
+from teacher.models.abmil import ABMIL
+from teacher.models.linear_probe import LinearProbe
 
 
 # ---------------------------------------------------------------------------

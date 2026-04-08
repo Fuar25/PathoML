@@ -1,17 +1,11 @@
-"""Dataset package: WSI feature dataset implementations for PathoML."""
+"""Shared dataset contracts and utilities for pathology feature loading."""
 
-from .SlideDataset import (
-  UnimodalSlideDataset,
-  MultimodalConcatSlideDataset,
-  MultimodalFusionSlideDataset,
-)
-from .PatchDataset import UnimodalPatchDataset
-from .utils import find_common_sample_keys
+from .base import MultimodalSlideDatasetBase, UnimodalFeatureDatasetBase
+from .utils import find_common_sample_keys, fingerprint_sample_keys
 
 __all__ = [
-  'UnimodalSlideDataset',
-  'MultimodalConcatSlideDataset',
-  'MultimodalFusionSlideDataset',
-  'UnimodalPatchDataset',
+  'MultimodalSlideDatasetBase',
+  'UnimodalFeatureDatasetBase',
   'find_common_sample_keys',
+  'fingerprint_sample_keys',
 ]

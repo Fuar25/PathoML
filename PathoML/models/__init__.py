@@ -1,3 +1,5 @@
-from .abmil import ABMIL
-from .linear_probe import LinearProbe
-from .mlp import MLP
+"""Shared model building blocks for pathology systems."""
+
+from .abmil import FeatureEncoder, GatedAttention, LinearClassifier
+
+__all__ = ['FeatureEncoder', 'GatedAttention', 'LinearClassifier']

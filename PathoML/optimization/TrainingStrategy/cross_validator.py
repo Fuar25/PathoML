@@ -70,6 +70,7 @@ class CrossValidator(Strategy, TrainingMixin):
     self.logging_cfg = config.logging
     self.device = torch.device(config.training.device)
     self.k_folds = k_folds
+    self.checkpoint_metadata: Dict[str, Any] = {}
     n_classes = len(dataset.classes)
     self.num_classes = 1 if n_classes == 2 else n_classes
 
@@ -96,6 +97,7 @@ class CrossValidator(Strategy, TrainingMixin):
         'fold':       fold + 1,
         'train_fold': sorted(set(patient_ids[train_val_ids].tolist())),  # includes val
         'test_fold':  sorted(set(patient_ids[test_ids].tolist())),
+        **self.checkpoint_metadata,
       }
 
       result, test_details = self._train_single_fold(

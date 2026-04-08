@@ -1,19 +1,15 @@
-# 只跑 HE+CD20+CD3 MLP bs32 条件，然后从 cv_predictions.csv 统计疑难 case。
 import os
-import sys
 
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from common import (
+from teacher.experiments.common import (
   run_condition, find_common_sample_keys,
   RunTimeConfig,
   SLIDE_FEAT_ROOT, LABELS_CSV,
   N_RUNS, K_FOLDS, EPOCHS, WD, DROPOUT_RATE, SLIDE_LR, PATIENCE,
   OUTPUTS_DIR, BASE_SEED,
-  load_all_module, create_dataset_from_config,
+  create_dataset_from_config, load_core_modules, load_teacher_modules,
 )
 
 DEVICE = "cuda:2"
@@ -85,7 +81,8 @@ def analyze_hard_cases(output_dir: str, n_runs: int, common_keys):
 
   # (5) 添加 slide_ids 列
   cfg = make_config(common_keys)
-  load_all_module(cfg)
+  load_core_modules(cfg)
+  load_teacher_modules()
   ds = create_dataset_from_config(cfg.dataset)
   slide_map = {}
   for idx in range(len(ds)):

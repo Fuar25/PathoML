@@ -1,34 +1,33 @@
-# CD20 单模态 ABMIL 实验（GigaPath-Patch-Feature）。
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from common import (
+from teacher.experiments.common import (
   run_condition, log_results, find_common_sample_keys,
   RunTimeConfig,
-  PATCH_FEAT_ROOT, SLIDE_FEAT_ROOT, LABELS_CSV,
-  N_RUNS, K_FOLDS, DEVICE, EPOCHS, PATIENCE, LR, WD, MLP_HIDDEN_DIM, DROPOUT_RATE, BATCH_SIZE,
+  SLIDE_FEAT_ROOT, LABELS_CSV,
+  N_RUNS, K_FOLDS, DEVICE, EPOCHS, WD, MLP_HIDDEN_DIM, BATCH_SIZE, SLIDE_LR, PATIENCE,
   OUTPUTS_DIR, SHARED_LOG_FILE,
 )
 
+STAINS = ["HE", "CD20"]
 INTERSECTION_STAINS = ["HE", "CD20", "CD3"]
 CONDITION_NAME = os.path.splitext(os.path.basename(__file__))[0]
 
 
 def make_config(common_keys) -> RunTimeConfig:
   config = RunTimeConfig()
-  config.dataset.dataset_name = "UnimodalPatchDataset"
-  config.dataset.dataset_kwargs["data_root"] = PATCH_FEAT_ROOT
-  config.dataset.dataset_kwargs["stain"] = "CD20"
-  config.dataset.dataset_kwargs["allowed_sample_keys"] = common_keys
-  config.dataset.dataset_kwargs["labels_csv"] = LABELS_CSV
-  config.model.model_name = "abmil"
-  config.model.model_kwargs = {"hidden_dim": MLP_HIDDEN_DIM, "dropout": DROPOUT_RATE}
+  config.dataset.dataset_name = "MultimodalConcatSlideDataset"
+  config.dataset.dataset_kwargs = {
+    "data_root": SLIDE_FEAT_ROOT,
+    "modality_names": STAINS,
+    "allow_missing_modalities": True,
+    "allowed_sample_keys": common_keys,
+    "labels_csv": LABELS_CSV,
+  }
+  config.model.model_name = "mlp"
+  config.model.model_kwargs = {"hidden_dim": MLP_HIDDEN_DIM}
   config.training.device = DEVICE
   config.training.epochs = EPOCHS
   config.training.patience = PATIENCE
-  config.training.learning_rate = LR
+  config.training.learning_rate = SLIDE_LR
   config.training.weight_decay = WD
   config.training.batch_size = BATCH_SIZE
   return config

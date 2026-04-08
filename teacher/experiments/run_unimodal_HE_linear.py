@@ -1,10 +1,5 @@
-# HE 单模态 LinearProbe 实验。
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from common import (
+from teacher.experiments.common import (
   run_condition, log_results, find_common_sample_keys,
   RunTimeConfig,
   SLIDE_FEAT_ROOT, LABELS_CSV,

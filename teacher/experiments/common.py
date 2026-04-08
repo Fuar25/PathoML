@@ -1,25 +1,20 @@
-# runs/common.py — 公共基础设施，供所有实验脚本共用。
-#
-# 包含：PathoML 导入、数据路径常量、超参数默认值、工具函数。
-# 每个 run_*.py 只需 from common import ... 即可使用。
+"""Shared infrastructure for teacher experiments."""
 
 import json
 import os
-import sys
 from datetime import datetime
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from PathoML.config.config import RunTimeConfig
-from PathoML.dataset.utils import find_common_sample_keys
+from PathoML.dataset.utils import find_common_sample_keys, fingerprint_sample_keys
 from PathoML.registry import (
   create_dataset_from_config,
+  load_core_modules,
   model_builder_from_config,
-  load_all_module,
 )
 from PathoML.optimization.trainer import CrossValidator, Trainer
+from teacher.runtime import load_teacher_modules
 
 
 # ─── 数据路径 ────────────────────────────────────────────────────────────────
@@ -75,12 +70,17 @@ def modality_names(stains: list[str]) -> list[str]:
 
 def run_cv(config: RunTimeConfig, k_folds: int) -> tuple[list[float], list[float]]:
   """运行一次 k 折 CV，返回每折的 (patient_auc_list, patient_f1_list)。"""
-  load_all_module(config)
+  load_core_modules(config)
+  load_teacher_modules()
   dataset = create_dataset_from_config(config.dataset)
   if len(dataset) == 0:
     raise RuntimeError("No data found. Check your data paths.")
   model_builder = model_builder_from_config(config.model, dataset)
-  result = Trainer(CrossValidator(model_builder, dataset, config, k_folds)).fit()
+  strategy = CrossValidator(model_builder, dataset, config, k_folds)
+  strategy.checkpoint_metadata = {
+    'sample_set_fingerprint': _sample_set_fingerprint(config),
+  }
+  result = Trainer(strategy).fit()
   fold_aucs = [f.patient_auc for f in result.fold_results]
   fold_f1s  = [f.patient_f1  for f in result.fold_results]
   return fold_aucs, fold_f1s
@@ -160,23 +160,35 @@ def _save_manifest(
   消除蒸馏脚本中的手动参数对齐。
   """
   dkw = config.dataset.dataset_kwargs
+  modality_names = list(dkw.get("modality_names", []))
+  if not modality_names and dkw.get("stain"):
+    modality_names = [dkw["stain"]]
   manifest = {
+    "schema_version": 1,
+    "artifact_type": "teacher_model",
+    "producer_system": "teacher",
     "condition_name": condition_name,
     "created_at": datetime.now().isoformat(timespec="seconds"),
     "n_runs": n_runs,
     "k_folds": k_folds,
     "base_seed": base_seed,
-    "modality_names": dkw.get("modality_names", []),
+    "modality_names": modality_names,
     "data_root": dkw.get("data_root", ""),
+    "labels_csv": dkw.get("labels_csv", ""),
     "model_name": config.model.model_name,
     "model_kwargs": config.model.model_kwargs,
-    # (1) 相对路径模板（相对于 manifest 所在目录）
+    "sample_set_fingerprint": _sample_set_fingerprint(config),
     "ckpt_template": "run_{run:02d}/model_fold_{fold}_best.pth",
   }
   manifest_path = os.path.join(condition_dir, "manifest.json")
   with open(manifest_path, "w", encoding="utf-8") as f:
     json.dump(manifest, f, indent=2, ensure_ascii=False)
   print(f"Teacher manifest 已写入: {manifest_path}")
+
+
+def _sample_set_fingerprint(config: RunTimeConfig) -> str:
+  sample_keys = config.dataset.dataset_kwargs.get('allowed_sample_keys') or set()
+  return fingerprint_sample_keys(set(sample_keys))
 
 
 def log_results(
@@ -239,4 +251,3 @@ def log_results(
   with open(log_path, "a", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
   print(f"结果已追加记录至: {log_path}")
-

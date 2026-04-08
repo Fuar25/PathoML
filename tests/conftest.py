@@ -79,7 +79,7 @@ def synthetic_dataset():
 @pytest.fixture
 def model_builder_fn():
   """Factory that returns a fresh ABMIL instance (input_dim=32, hidden_dim=16)."""
-  from PathoML.models.abmil import ABMIL
+  from teacher.models.abmil import ABMIL
   return lambda: ABMIL(input_dim=32, hidden_dim=16, num_classes=1, dropout=0.0)
 
 

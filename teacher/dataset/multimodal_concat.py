@@ -1,32 +1,24 @@
-"""Slide-level multimodal concatenation dataset."""
+"""Teacher dataset: multimodal slide concat features."""
 
 from __future__ import annotations
 
-import torch
 from typing import Any, Dict, List
 
-from ...registry import register_dataset
-from ._base import _MultimodalSlideBase
+import h5py
+import numpy as np
+import torch
+
+from PathoML.dataset.base import MultimodalSlideDatasetBase
+from PathoML.dataset.utils import _walk_h5_files
+from PathoML.registry import register_dataset
 
 
 @register_dataset('MultimodalConcatSlideDataset')
-class MultimodalConcatSlideDataset(_MultimodalSlideBase):
-  """Slide-level multimodal concat dataset.
-
-  Concatenates modality feature vectors along the channel dimension:
-      (1, D_1), ..., (1, D_n) → (1, D_1 + ... + D_n)
-
-  Usage:
-      dataset = MultimodalConcatSlideDataset(
-          data_root='/data/Slide',
-          modality_names=['HE', 'CD20', 'CD3'],
-          labels_csv='labels.csv',
-      )
-  """
+class MultimodalConcatSlideDataset(MultimodalSlideDatasetBase):
+  """Slide-level multimodal concat dataset for teacher experiments."""
 
   def __init__(self, *args, **kwargs) -> None:
     super().__init__(*args, **kwargs)
-    # Infer feature dims for zero-padding missing modalities
     self._modality_feature_dims = self._infer_feature_dims()
     if self.verbose:
       total_dim = sum(self._modality_feature_dims.get(m, 0) for m in self.modality_names)
@@ -36,9 +28,6 @@ class MultimodalConcatSlideDataset(_MultimodalSlideBase):
       )
 
   def _infer_feature_dims(self) -> Dict[str, int]:
-    """Infer feature dim per modality (needed to zero-pad missing modalities)."""
-    import h5py, numpy as np
-    from ..utils import _walk_h5_files
     dims: Dict[str, int] = {}
     for modality_name in self.modality_names:
       for _, filepath in _walk_h5_files(self.data_root, stain=modality_name):
@@ -56,11 +45,9 @@ class MultimodalConcatSlideDataset(_MultimodalSlideBase):
     item = self.samples[idx]
     sample_key = item['sample_key']
     loaded_features, loaded_coords = self._load_modality_features(sample_key)
-
     if not loaded_features:
       raise RuntimeError(f"No modality features loaded for sample {sample_key}")
 
-    # Concatenate along channel dim; zero-pad missing modalities
     concat_parts: List[torch.Tensor] = []
     available_modalities: List[str] = []
     for modality_name in self.modality_names:
@@ -78,12 +65,11 @@ class MultimodalConcatSlideDataset(_MultimodalSlideBase):
       n = next(iter(loaded_features.values())).shape[0]
       concat_parts.append(torch.zeros(n, dim, dtype=torch.float32))
 
-    features = torch.cat(concat_parts, dim=-1)  # (..., sum(D_i))
-
+    features = torch.cat(concat_parts, dim=-1)
     coords = None
-    for m in self.modality_names:
-      if m in loaded_coords:
-        coords = loaded_coords[m]
+    for modality_name in self.modality_names:
+      if modality_name in loaded_coords:
+        coords = loaded_coords[modality_name]
         break
     if coords is None:
       coords = torch.zeros(features.shape[0], 2, dtype=torch.float32)
@@ -94,11 +80,11 @@ class MultimodalConcatSlideDataset(_MultimodalSlideBase):
       else torch.tensor(item['label']).long()
     )
     return {
-      'features':   features,
-      'coords':     coords,
-      'label':      label_tensor,
-      'slide_id':   f"{sample_key[0]}{sample_key[1]}",
+      'features': features,
+      'coords': coords,
+      'label': label_tensor,
+      'slide_id': f"{sample_key[0]}{sample_key[1]}",
       'patient_id': item['patient_id'],
-      'tissue_id':  item['tissue_id'],
+      'tissue_id': item['tissue_id'],
       'modalities': available_modalities,
     }

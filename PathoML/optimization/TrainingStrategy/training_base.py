@@ -19,8 +19,22 @@ import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+
+try:
+  from torch.utils.tensorboard import SummaryWriter
+except ModuleNotFoundError:
+  class SummaryWriter:  # type: ignore[override]
+    """No-op SummaryWriter fallback when tensorboard is unavailable."""
+
+    def __init__(self, *args, **kwargs) -> None:
+      pass
+
+    def add_scalar(self, *args, **kwargs) -> None:
+      pass
+
+    def close(self) -> None:
+      pass
 
 from ..training_utils import (
   move_to_device, model_inputs, forward_and_decode, compute_auc,

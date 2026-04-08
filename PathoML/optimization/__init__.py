@@ -7,6 +7,7 @@ from PathoML.registry import (
   register_dataset,
   create_model,
   create_dataset,
+  load_core_modules,
   load_all_module,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
   'register_dataset',
   'create_model',
   'create_dataset',
+  'load_core_modules',
   'load_all_module',
 ]
