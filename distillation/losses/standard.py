@@ -1,16 +1,13 @@
-"""Standard teacher-student KD losses."""
+"""Deprecated family wrapper for standard teacher-student KD."""
 
 from __future__ import annotations
 
-import torch
-import torch.nn.functional as F
-from torch import Tensor
-
-from .base import DistillationLoss
+from .base import CompositeDistillationLoss, WeightedTerm
+from .terms import HiddenLoss, SoftLabelLoss, TaskLoss
 
 
-class StandardKDLoss(DistillationLoss):
-  """Task loss plus feature matching and softened logit KD."""
+class StandardKDLoss(CompositeDistillationLoss):
+  """Compatibility wrapper over explicit distillation terms."""
 
   def __init__(
     self,
@@ -18,38 +15,16 @@ class StandardKDLoss(DistillationLoss):
     beta: float = 1.0,
     temperature: float = 4.0,
   ) -> None:
-    super().__init__()
-    self.alpha = alpha
-    self.beta = beta
-    self.temperature = temperature
+    self.alpha = float(alpha)
+    self.beta = float(beta)
+    self.temperature = float(temperature)
 
-  def forward(
-    self,
-    s_out: dict,
-    t_out: dict,
-    labels: Tensor,
-  ) -> Tensor:
-    s_logit = s_out['logits'].squeeze(1)
-    s_hidden = s_out['hidden']
-    t_logit = t_out['logit'].squeeze(1)
-    t_hidden = t_out['hidden']
-
-    loss = F.binary_cross_entropy_with_logits(s_logit, labels)
-
+    terms = [TaskLoss()]
     if self.alpha != 0:
-      s_feat = s_out.get('proj', s_hidden)
-      loss = loss + self.alpha * F.mse_loss(s_feat, t_hidden)
-
+      terms.append(WeightedTerm(HiddenLoss(), self.alpha))
     if self.beta != 0:
-      temperature = self.temperature
-      p_teacher = torch.sigmoid(t_logit / temperature)
-      kd_loss = F.binary_cross_entropy_with_logits(
-        s_logit / temperature,
-        p_teacher,
-      ) * (temperature ** 2)
-      loss = loss + self.beta * kd_loss
-
-    return loss
+      terms.append(WeightedTerm(SoftLabelLoss(self.temperature), self.beta))
+    super().__init__(terms)
 
   def __repr__(self) -> str:
     return (

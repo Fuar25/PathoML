@@ -55,6 +55,40 @@ def format_condition_value(value: int | float | str) -> str:
   return str(value).replace('-', 'minus_').replace('.', 'p')
 
 
+def describe_loss_design(distill_loss) -> str:
+  """Return the canonical human-readable loss formula for logs and PLANs."""
+  if hasattr(distill_loss, 'describe'):
+    return distill_loss.describe()
+  return str(distill_loss)
+
+
+def build_condition_name(
+  family_prefix: str,
+  distill_loss,
+  *,
+  extra_tags: list[str] | None = None,
+) -> str:
+  """Build a descriptive condition name from active distillation terms."""
+  parts = [family_prefix]
+  if hasattr(distill_loss, 'slug'):
+    parts.append(distill_loss.slug())
+  if extra_tags:
+    parts.extend(extra_tags)
+  return "_".join(part for part in parts if part)
+
+
+def build_runtime_config(*, device: str = DEVICE) -> RunTimeConfig:
+  """Build a default distillation runtime config."""
+  config = RunTimeConfig()
+  config.training.epochs        = EPOCHS
+  config.training.learning_rate = LR
+  config.training.weight_decay  = WD
+  config.training.patience      = PATIENCE
+  config.training.batch_size    = BATCH_SIZE
+  config.training.device        = device
+  return config
+
+
 def default_teacher_manifest_path(condition_name: str) -> str:
   """Return the default teacher manifest path for a named teacher condition."""
   return str(PROJECT_ROOT / 'teacher' / 'experiments' / 'outputs' / condition_name / 'manifest.json')
@@ -153,7 +187,7 @@ def run_condition(
   Returns:
     dict with keys: run_means, all_fold_aucs, run_f1_means, all_fold_f1s
   """
-  print(f'distill_loss: {distill_loss}')
+  print(f'loss_design: {describe_loss_design(distill_loss)}')
 
   run_means, all_fold_aucs = [], []
   run_f1_means, all_fold_f1s = [], []
@@ -243,7 +277,7 @@ def log_results(
       f"batch_size={t.batch_size}  device={t.device}"
     )
   if distill_loss:
-    lines.append(f"distill_loss: {distill_loss}")
+    lines.append(f"loss_design: {describe_loss_design(distill_loss)}")
   kw_str = "  ".join(f"{k}={v}" for k, v in student_kwargs.items())
   lines.append(f"student: {kw_str}")
   lines.append(sep)

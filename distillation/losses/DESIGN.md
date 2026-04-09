@@ -6,28 +6,38 @@ Provide the stable extension-point package for distillation losses.
 ## 2. Scope / Owns
 This package owns:
 - `DistillationLoss`
-- the concrete distillation loss families
+- `DistillationTerm`
+- `CompositeDistillationLoss`
+- the atomic distillation loss terms
 - loss-local helper functions
 
 ## 3. Public Contracts
 - `DistillationLoss`
-- `StandardKDLoss`
-- `RKDLoss`
-- `TeacherGuidedAttnLoss`
-- `RelationalTGALoss`
+- `DistillationTerm`
+- `CompositeDistillationLoss`
+- `TaskLoss`
+- `HiddenLoss`
+- `SoftLabelLoss`
+- `RKDDistanceLoss`
+- `RKDAngleLoss`
+- `CosineAttentionLogitLoss`
+- `DiscriminationAttentionLogitLoss`
+- `ContrastiveTeacherDiscriminationLoss`
 
 ## 4. Invariants
-- Loss remains the single extension point for adding new distillation methods.
+- Distillation methods are built by composing explicit atomic terms.
 - Trainer code should not need edits when adding a new loss class.
-- All current losses include `L_task` as the base supervision term.
+- `L_task` is explicit; it is not implicitly injected by the composite loss.
+- Human-readable loss formulas and condition-name slugs are derived from the active terms.
 
 ## 5. Change Rules
-- Add new loss families as new modules inside this package.
+- Add new reusable behaviors as new atomic terms before introducing a new family wrapper.
 - Update this file if the required student/teacher output contract changes.
 
 ## Decided
 - `losses` is a first-class package because it is expected to keep growing.
-- Attention-guided losses stay separate from KD and relational losses.
+- The primary extension point is now `DistillationTerm + CompositeDistillationLoss`.
+- Legacy family-style wrappers may exist for migration or compatibility, but experiment scripts should use explicit term composition.
 
 ## TODO
-1. Rebalance internal modules if a future loss family grows large enough to justify its own subpackage.
+1. Reintroduce non-mainline historical terms such as mean-bypass only if they become active experiment designs again.

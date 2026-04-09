@@ -1,14 +1,33 @@
 """Distillation loss package."""
 
-from .attention import RelationalTGALoss, TeacherGuidedAttnLoss
-from .base import DistillationLoss
-from .relational import RKDLoss
-from .standard import StandardKDLoss
+from .base import (
+  CompositeDistillationLoss,
+  DistillationLoss,
+  DistillationTerm,
+  WeightedTerm,
+)
+from .terms import (
+  ContrastiveTeacherDiscriminationLoss,
+  CosineAttentionLogitLoss,
+  DiscriminationAttentionLogitLoss,
+  HiddenLoss,
+  RKDAngleLoss,
+  RKDDistanceLoss,
+  SoftLabelLoss,
+  TaskLoss,
+)
 
 __all__ = [
   'DistillationLoss',
-  'StandardKDLoss',
-  'RKDLoss',
-  'TeacherGuidedAttnLoss',
-  'RelationalTGALoss',
+  'DistillationTerm',
+  'CompositeDistillationLoss',
+  'WeightedTerm',
+  'TaskLoss',
+  'HiddenLoss',
+  'SoftLabelLoss',
+  'RKDDistanceLoss',
+  'RKDAngleLoss',
+  'CosineAttentionLogitLoss',
+  'DiscriminationAttentionLogitLoss',
+  'ContrastiveTeacherDiscriminationLoss',
 ]

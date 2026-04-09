@@ -2,12 +2,18 @@
 
 from distillation.experiments.common import (
   default_teacher_manifest_path,
+  build_condition_name,
+  build_runtime_config,
   format_condition_value,
   run_condition, log_results, load_distill_dataset, load_manifest,
-  RunTimeConfig,
-  EPOCHS, PATIENCE, LR, WD, BATCH_SIZE, DEVICE, STUDENT_KWARGS,
+  STUDENT_KWARGS,
 )
-from distillation.losses import RelationalTGALoss
+from distillation.losses import (
+  CompositeDistillationLoss,
+  ContrastiveTeacherDiscriminationLoss,
+  TaskLoss,
+  WeightedTerm,
+)
 from distillation.models.student import StudentTransABMIL_MH
 
 
@@ -24,20 +30,16 @@ MH_STUDENT_KWARGS = dict(
 
 CONDITIONS = [
   (
-    "multihead_contrastive_distillation_"
-    f"gamma{format_condition_value(0)}_"
-    f"lambda{format_condition_value(1)}_"
-    f"tau{format_condition_value(1.0)}_"
-    f"pool_heads{format_condition_value(MH_STUDENT_KWARGS['pool_heads'])}",
-    0, 1, 1.0,
+    lambda: CompositeDistillationLoss([
+      TaskLoss(),
+      ContrastiveTeacherDiscriminationLoss(tau=1.0),
+    ]),
   ),
   (
-    "multihead_contrastive_distillation_"
-    f"gamma{format_condition_value(0)}_"
-    f"lambda{format_condition_value(0.1)}_"
-    f"tau{format_condition_value(1.0)}_"
-    f"pool_heads{format_condition_value(MH_STUDENT_KWARGS['pool_heads'])}",
-    0, 0.1, 1.0,
+    lambda: CompositeDistillationLoss([
+      TaskLoss(),
+      WeightedTerm(ContrastiveTeacherDiscriminationLoss(tau=1.0), 0.1),
+    ]),
   ),
 ]
 
@@ -50,16 +52,18 @@ def main():
   manifest = load_manifest(TEACHER_MANIFEST)
   dataset, intersection_names = load_distill_dataset(manifest)
 
-  for cond_name, gamma, lam, tau in CONDITIONS:
-    print(f"\n{'#'*70}\n# {cond_name}  (gamma={gamma}, lam={lam}, tau={tau})\n{'#'*70}")
-    config = RunTimeConfig()
-    config.training.epochs        = EPOCHS
-    config.training.learning_rate = LR
-    config.training.weight_decay  = WD
-    config.training.patience      = PATIENCE
-    config.training.batch_size    = BATCH_SIZE
-    config.training.device        = DEVICE
-    distill_loss = RelationalTGALoss(gamma=gamma, lam=lam, tau=tau)
+  extra_tags = [
+    f"pool_heads{format_condition_value(MH_STUDENT_KWARGS['pool_heads'])}",
+  ]
+  for build_loss in CONDITIONS:
+    distill_loss = build_loss()
+    cond_name = build_condition_name(
+      'multihead_rtga',
+      distill_loss,
+      extra_tags=extra_tags,
+    )
+    print(f"\n{'#'*70}\n# {cond_name}  {distill_loss.describe()}\n{'#'*70}")
+    config = build_runtime_config()
     results = run_condition(
       cond_name, config, distill_loss, manifest, dataset,
       student_builder=lambda: StudentTransABMIL_MH(**MH_STUDENT_KWARGS),
