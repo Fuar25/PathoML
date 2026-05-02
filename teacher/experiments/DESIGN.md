@@ -32,6 +32,8 @@ This directory does not own:
 - `common.py` writes teacher artifact manifests after each condition finishes.
 - Cross-condition comparison requires the same sample set, seed regime, and ordering assumptions.
 - Canonical distillation-facing artifacts must be reproducible from standard `run_<condition>.py` entry points in `teacher/experiments/`.
+- Long-running tuning outputs are disposable until promoted or summarized.
+- Promote exactly one current teacher winner to `../PathoML-runs/teacher-winners/` for default distillation consumption.
 - `launch_parallel_runs.py` may run independent run indices on separate GPUs; it must keep the standard output layout and aggregate the same manifest/log contract.
 
 ## 5. Change Rules
@@ -42,6 +44,7 @@ This directory does not own:
 - Experiment tracking lives in `teacher/experiments/`.
 - Teacher experiment outputs are the canonical producer of distillation input artifacts.
 - Long-lived teacher artifacts are promoted to `../PathoML-runs/teacher-winners/`; repo logs keep conclusions, not checkpoints.
+- Non-winner teacher outputs may be deleted once `PLAN.md` and `results_log.txt` contain the conclusion.
 - Registered patch experiments use cached aligned items and DataLoader tuning by default; environment variables may disable these performance options for diagnostics.
 
 ## TODO

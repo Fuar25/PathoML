@@ -25,6 +25,19 @@ Keep architecture changes out of `PLAN.md`.
 - Prefer an idle GPU for ad hoc experiment runs.
 - Bind ad hoc GPU placement with `CUDA_VISIBLE_DEVICES`.
 - Keep canonical script device config unchanged for ad hoc GPU moves.
+- Keep heavy experiment outputs outside the repository under `../PathoML-runs/`.
+- Keep Python bytecode disabled for repo work (`PYTHONDONTWRITEBYTECODE=1`).
+
+## 2.2 Experiment Workflow
+- Start experimental work from a topic branch named `exp/<topic>` when the code path is not ready for `master`.
+- Keep branch commits focused on lightweight code, configs, docs, and result summaries.
+- Let teacher runs write heavy artifacts to `../PathoML-runs/teacher/<condition>/`.
+- Let distillation runs write heavy artifacts to `../PathoML-runs/distillation/<condition>/`.
+- Promote only the current canonical teacher to `../PathoML-runs/teacher-winners/`.
+- Use `scripts/promote_teacher_winner.py <condition> --force` after choosing a teacher winner.
+- Record conclusions in the matching `PLAN.md` and `results_log*.txt` before deleting non-winner artifacts.
+- Delete or archive non-winner run directories after their conclusions are recorded.
+- Merge mature work back to `master` as compressed topic commits, then delete the `exp/<topic>` branch.
 
 ## 3. Read Order
 1. This file

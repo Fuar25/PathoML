@@ -29,6 +29,8 @@ This directory owns:
 - Use one canonical family vocabulary in machine IDs and code identifiers; `teacher_guided_attention` stays canonical.
 - Shared logging records a human-readable `loss_design` derived from active composed terms.
 - Git ignore rules target generated outputs, not code directories.
+- Distillation checkpoints and predictions are disposable unless a downstream consumer is explicitly defined.
+- Preserve experiment conclusions in `PLAN.md` and `results_log_mil_abmil.txt` before deleting heavy run outputs.
 
 ## 5. Change Rules
 - If experiment wiring changes, update this file.
@@ -41,6 +43,7 @@ This directory owns:
 - Experiment tracking lives in `distillation/experiments/`.
 - `common.py` owns teacher manifest loading, dataset construction, run orchestration, and shared logging.
 - Heavy run outputs live outside the repository under `../PathoML-runs/distillation/`.
+- Default runs consume the fixed current teacher winner, not arbitrary teacher tuning outputs.
 - `confirmation.py` owns confirmation-only student seed control while preserving teacher split seeds.
 - Legacy short aliases may exist in historical `results_log.txt`; do not reuse them for new experiments.
 - New active-line experiments append to `results_log_mil_abmil.txt` by default.
