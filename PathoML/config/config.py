@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .defaults import (
   DEFAULT_DATASET_NAME,
@@ -43,8 +43,16 @@ class TrainingConfig:
   seed: int = 42
   device: str = 'cuda'
   patience: int = 5
+  min_delta: float = 0.002
+  early_stopping_metric: str = 'val_auc'  # 'val_auc' | 'patient_f1'
   patient_threshold: float = 0.5
   scheduler: str = 'none'  # 'none' | 'cosine'
+  num_workers: int = 0
+  pin_memory: bool = False
+  persistent_workers: bool = False
+  prefetch_factor: Optional[int] = None
+  non_blocking_device_transfer: bool = False
+  bucket_by_length: bool = False
 
 
 @dataclass

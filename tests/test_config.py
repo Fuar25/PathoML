@@ -34,6 +34,7 @@ def test_training_config_defaults():
   assert t.batch_size == 1
   assert t.seed == 42
   assert 0.0 < t.learning_rate < 1.0
+  assert t.min_delta == 0.002
 
 
 def test_runtime_config_independence():

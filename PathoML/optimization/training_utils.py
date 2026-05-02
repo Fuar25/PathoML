@@ -28,31 +28,44 @@ class TrainingResult:
 
 
 # ---------------------------------------------------------------------------
-# (2) EarlyStopping — tracks validation AUC, saves checkpoint on improvement
+# (2) EarlyStopping — tracks configured validation score, saves checkpoint on improvement
 # ---------------------------------------------------------------------------
 
 class EarlyStopping:
   """Patience-based early stopping with integrated checkpoint management.
 
-  Tracks val_auc (higher is better). Saves checkpoint only when a new global
-  best is reached. Counter increments on non-improvement; resets on new best.
+  Tracks a validation score (higher is better). Saves checkpoint only when a new
+  global best (+ min_delta) is reached. Counter increments on non-improvement;
+  resets on new best.
   """
 
-  def __init__(self, patience: int, model: nn.Module, ckpt_path: str) -> None:
+  def __init__(
+    self,
+    patience: int,
+    model: nn.Module,
+    ckpt_path: str,
+    monitor_name: str = 'val_auc',
+    min_delta: float = 0.0,
+  ) -> None:
     self.patience = patience
     self.model = model
     self.ckpt_path = ckpt_path
+    self.monitor_name = monitor_name
+    self.min_delta = min_delta
+    self.best_score = float('-inf')
+    # Backward-compatible alias for historical callers.
     self.best_val_auc = float('-inf')
     self.patience_counter = 0
     self.best_epoch = 0
 
-  def step(self, val_auc: float, current_epoch: int) -> bool:
+  def step(self, score: float, current_epoch: int) -> bool:
     """Update state. Returns True if training should stop.
 
-    Saves checkpoint when val_auc exceeds the global best (not just previous epoch).
+    Saves checkpoint when score exceeds the global best by at least min_delta.
     """
-    if val_auc > self.best_val_auc:
-      self.best_val_auc = val_auc
+    if score > self.best_score + self.min_delta:
+      self.best_score = score
+      self.best_val_auc = score
       self.best_epoch = current_epoch
       self.patience_counter = 0
       torch.save(self.model.state_dict(), self.ckpt_path)
@@ -65,6 +78,7 @@ class EarlyStopping:
     self.model.load_state_dict(torch.load(self.ckpt_path, weights_only=True))
 
   def reset(self) -> None:
+    self.best_score = float('-inf')
     self.best_val_auc = float('-inf')
     self.patience_counter = 0
     self.best_epoch = 0
@@ -169,16 +183,98 @@ def build_loaders(
 
   Returns (train_loader, val_loader) or (train_loader, val_loader, test_loader).
   """
-  from PathoML.dataset.utils import _variable_size_collate
+  from PathoML.dataset.utils import LengthBucketBatchSampler, _variable_size_collate
 
   bs = training_cfg.batch_size
   collate = _variable_size_collate if bs > 1 else None
-  train_loader = DataLoader(Subset(dataset, train_ids), batch_size=bs, shuffle=True,  collate_fn=collate)
-  val_loader   = DataLoader(Subset(dataset, val_ids),   batch_size=bs, shuffle=False, collate_fn=collate)
+  train_loader = _build_loader(
+    dataset,
+    train_ids,
+    batch_size=bs,
+    shuffle=True,
+    collate_fn=collate,
+    training_cfg=training_cfg,
+    batch_sampler_cls=LengthBucketBatchSampler,
+  )
+  val_loader = _build_loader(
+    dataset,
+    val_ids,
+    batch_size=bs,
+    shuffle=False,
+    collate_fn=collate,
+    training_cfg=training_cfg,
+    batch_sampler_cls=LengthBucketBatchSampler,
+  )
   if test_ids is not None:
-    test_loader = DataLoader(Subset(dataset, test_ids), batch_size=bs, shuffle=False, collate_fn=collate)
+    test_loader = _build_loader(
+      dataset,
+      test_ids,
+      batch_size=bs,
+      shuffle=False,
+      collate_fn=collate,
+      training_cfg=training_cfg,
+      batch_sampler_cls=LengthBucketBatchSampler,
+    )
     return train_loader, val_loader, test_loader
   return train_loader, val_loader
+
+
+def _build_loader(
+  dataset,
+  indices: np.ndarray,
+  *,
+  batch_size: int,
+  shuffle: bool,
+  collate_fn,
+  training_cfg,
+  batch_sampler_cls,
+) -> DataLoader:
+  subset = Subset(dataset, indices)
+  loader_kwargs = _loader_kwargs(training_cfg)
+  if getattr(training_cfg, 'bucket_by_length', False) and batch_size > 1:
+    lengths = [_sample_length(dataset, int(i)) for i in indices]
+    generator = torch.Generator()
+    generator.manual_seed(int(getattr(training_cfg, 'seed', 42)) + (1 if shuffle else 0))
+    sampler = batch_sampler_cls(
+      lengths,
+      batch_size,
+      shuffle=shuffle,
+      generator=generator,
+    )
+    return DataLoader(subset, batch_sampler=sampler, collate_fn=collate_fn, **loader_kwargs)
+  return DataLoader(
+    subset,
+    batch_size=batch_size,
+    shuffle=shuffle,
+    collate_fn=collate_fn,
+    **loader_kwargs,
+  )
+
+
+def _loader_kwargs(training_cfg) -> Dict[str, Any]:
+  num_workers = max(0, int(getattr(training_cfg, 'num_workers', 0) or 0))
+  kwargs: Dict[str, Any] = {
+    'num_workers': num_workers,
+    'pin_memory': bool(getattr(training_cfg, 'pin_memory', False)),
+  }
+  if num_workers > 0:
+    kwargs['persistent_workers'] = bool(getattr(training_cfg, 'persistent_workers', False))
+    prefetch_factor = getattr(training_cfg, 'prefetch_factor', None)
+    if prefetch_factor is not None:
+      kwargs['prefetch_factor'] = int(prefetch_factor)
+  return kwargs
+
+
+def _sample_length(dataset, idx: int) -> int:
+  if hasattr(dataset, 'get_item_length'):
+    return int(dataset.get_item_length(idx))
+  samples = getattr(dataset, 'samples', None)
+  if samples is not None and 0 <= idx < len(samples):
+    sample = samples[idx]
+    for key in ('aligned_patch_count', 'patch_count', 'instance_count'):
+      if key in sample:
+        return int(sample[key])
+  return 1
 
 
 def split_train_val(
@@ -194,14 +290,18 @@ def split_train_val(
   return splits[0]
 
 
-def move_to_device(batch: Dict[str, Any], device: torch.device) -> Dict[str, Any]:
+def move_to_device(
+  batch: Dict[str, Any],
+  device: torch.device,
+  non_blocking: bool = False,
+) -> Dict[str, Any]:
   """Move all tensor values in a batch dict to device."""
   out = {}
   for k, v in batch.items():
     if torch.is_tensor(v):
-      out[k] = v.to(device)
+      out[k] = v.to(device, non_blocking=non_blocking)
     elif isinstance(v, list) and v and torch.is_tensor(v[0]):
-      out[k] = [t.to(device) for t in v]
+      out[k] = [t.to(device, non_blocking=non_blocking) for t in v]
     else:
       out[k] = v
   return out

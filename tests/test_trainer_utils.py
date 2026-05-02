@@ -1,6 +1,7 @@
 """Tests for EarlyStopping in optimization.trainer."""
 
 import os
+import time
 import warnings
 
 import pytest
@@ -48,6 +49,29 @@ def test_early_stopping_best_epoch_tracked(tmp_path):
   assert es.best_epoch == 2
 
 
+def test_early_stopping_min_delta_ignores_small_improvements(tmp_path):
+  model = nn.Linear(4, 2)
+  es = EarlyStopping(
+    patience=2, model=model, ckpt_path=str(tmp_path / "ckpt.pt"), min_delta=0.01
+  )
+  es.step(0.80, 1)
+  assert es.step(0.805, 2) == False  # +0.005 <= min_delta, not an improvement
+  assert es.best_epoch == 1
+  assert es.step(0.809, 3) == True   # patience exhausted
+
+
+def test_early_stopping_min_delta_resets_on_large_improvement(tmp_path):
+  model = nn.Linear(4, 2)
+  es = EarlyStopping(
+    patience=3, model=model, ckpt_path=str(tmp_path / "ckpt.pt"), min_delta=0.01
+  )
+  es.step(0.80, 1)
+  es.step(0.805, 2)                  # +0.005 <= min_delta, counter = 1
+  assert es.step(0.811, 3) == False  # +0.011 > min_delta, reset counter
+  assert es.best_epoch == 3
+  assert es.patience_counter == 0
+
+
 def test_early_stopping_reset(tmp_path):
   model = nn.Linear(4, 2)
   es = EarlyStopping(patience=3, model=model, ckpt_path=str(tmp_path / "ckpt.pt"))
@@ -77,8 +101,21 @@ def test_early_stopping_does_not_save_on_no_improvement(tmp_path):
   es = EarlyStopping(patience=3, model=model, ckpt_path=ckpt_path)
   es.step(0.8, 1)   # saves
   mtime_after_first = os.path.getmtime(ckpt_path)
-  import time; time.sleep(0.05)
+  time.sleep(0.05)
   es.step(0.5, 2)   # no improvement (lower AUC) — should NOT overwrite
+  assert os.path.getmtime(ckpt_path) == mtime_after_first
+
+
+def test_early_stopping_min_delta_does_not_overwrite_checkpoint(tmp_path):
+  model = nn.Linear(4, 2)
+  ckpt_path = str(tmp_path / "best.pt")
+  es = EarlyStopping(
+    patience=3, model=model, ckpt_path=ckpt_path, min_delta=0.01
+  )
+  es.step(0.80, 1)   # saves
+  mtime_after_first = os.path.getmtime(ckpt_path)
+  time.sleep(0.05)
+  es.step(0.805, 2)  # +0.005 <= min_delta, should NOT overwrite
   assert os.path.getmtime(ckpt_path) == mtime_after_first
 
 

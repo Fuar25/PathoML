@@ -33,6 +33,9 @@ except ModuleNotFoundError:
     def add_scalar(self, *args, **kwargs) -> None:
       pass
 
+    def add_hparams(self, *args, **kwargs) -> None:
+      pass
+
     def close(self) -> None:
       pass
 
@@ -71,6 +74,13 @@ class TrainingMixin:
       log_dir: if provided, writes TensorBoard events to this directory.
     """
     writer = SummaryWriter(log_dir) if log_dir else None
+    monitor_name = getattr(self.training_cfg, 'early_stopping_metric', 'val_auc')
+    valid_monitors = {'val_auc', 'patient_f1'}
+    if monitor_name not in valid_monitors:
+      raise ValueError(
+        f"Unsupported early_stopping_metric: {monitor_name}. "
+        f"Expected one of: {sorted(valid_monitors)}"
+      )
 
     if self.training_cfg.scheduler == 'cosine':
       scheduler = CosineAnnealingLR(optimizer, T_max=self.training_cfg.epochs)
@@ -81,7 +91,13 @@ class TrainingMixin:
     with tqdm(range(self.training_cfg.epochs), desc=f"  {label}", leave=True) as pbar:
       for epoch in pbar:
         train_loss, _ = self._train_epoch(model, train_loader, criterion, optimizer)
-        val_loss, val_acc, val_auc, _ = self._evaluate_with_auc(model, val_loader, criterion)
+        val_loss, val_acc, val_auc, val_details = self._evaluate_with_auc(model, val_loader, criterion)
+        monitor_score = val_auc
+        _, _, patient_f1 = self._compute_patient_metrics(val_details)
+        if not np.isfinite(patient_f1):
+          patient_f1 = -1.0
+        if monitor_name == 'patient_f1':
+          monitor_score = patient_f1
         if scheduler:
           scheduler.step()
 
@@ -90,8 +106,9 @@ class TrainingMixin:
           writer.add_scalar('Loss/train', train_loss, epoch)
           writer.add_scalar('Loss/val', val_loss, epoch)
           writer.add_scalar('AUC/val', val_auc, epoch)
+          writer.add_scalar('F1/patient_val', patient_f1, epoch)
 
-        should_stop = early_stopping.step(val_auc, epoch + 1)
+        should_stop = early_stopping.step(monitor_score, epoch + 1)
 
         elapsed = time.time() - start
         eta = elapsed / (epoch + 1) * (self.training_cfg.epochs - epoch - 1)
@@ -99,6 +116,7 @@ class TrainingMixin:
           train_loss=f"{train_loss:.4f}",
           val_loss=f"{val_loss:.4f}",
           val_auc=f"{val_auc:.4f}",
+          es_score=f"{monitor_score:.4f}",
           ETA=f"{int(eta//60)}:{int(eta%60):02d}",
         )
         if should_stop:
@@ -106,6 +124,18 @@ class TrainingMixin:
           break
 
     if writer:
+      writer.add_hparams(
+        hparam_dict={
+          'monitor':    monitor_name,
+          'lr':         self.training_cfg.learning_rate,
+          'batch_size': self.training_cfg.batch_size,
+          'patience':   self.training_cfg.patience,
+        },
+        metric_dict={
+          'hparam/best_epoch': float(early_stopping.best_epoch),
+          'hparam/best_score': early_stopping.best_score,
+        },
+      )
       writer.close()
 
   def _train_epoch(
@@ -121,7 +151,11 @@ class TrainingMixin:
 
     with tqdm(loader, desc="  Training", unit="batch", leave=False) as pbar:
       for raw_batch in pbar:
-        batch = move_to_device(raw_batch, self.device)
+        batch = move_to_device(
+          raw_batch,
+          self.device,
+          non_blocking=getattr(self.training_cfg, 'non_blocking_device_transfer', False),
+        )
         inputs = model_inputs(batch)
         labels = batch['label']
 
@@ -159,7 +193,11 @@ class TrainingMixin:
 
     with torch.no_grad():
       for raw_batch in loader:
-        batch = move_to_device(raw_batch, self.device)
+        batch = move_to_device(
+          raw_batch,
+          self.device,
+          non_blocking=getattr(self.training_cfg, 'non_blocking_device_transfer', False),
+        )
         inputs = model_inputs(batch)
         labels = batch['label']
         slide_ids = batch.get('slide_id', ['unknown'] * len(labels))

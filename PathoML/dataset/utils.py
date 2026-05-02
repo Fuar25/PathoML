@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import re
 import hashlib
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 import torch
+from torch.utils.data import Sampler
 
 from ..config.defaults import PATIENT_ID_PATTERN
 
@@ -107,6 +108,67 @@ def _variable_size_collate(batch):
       mask[i, :n] = True
     result['mask'] = mask
   return result
+
+
+class LengthBucketBatchSampler(Sampler[List[int]]):
+  """Batch sampler that groups similarly sized variable-length samples.
+
+  The sampler yields indices relative to the dataset passed to DataLoader. For
+  shuffled training, it shuffles bucket and batch order while preserving
+  length-adjacent samples inside each batch to reduce padding waste.
+  """
+
+  def __init__(
+    self,
+    lengths: Iterable[int],
+    batch_size: int,
+    *,
+    shuffle: bool,
+    drop_last: bool = False,
+    bucket_size_multiplier: int = 16,
+    generator: Optional[torch.Generator] = None,
+  ) -> None:
+    self.lengths = [int(v) for v in lengths]
+    self.batch_size = int(batch_size)
+    self.shuffle = bool(shuffle)
+    self.drop_last = bool(drop_last)
+    self.bucket_size = max(self.batch_size, self.batch_size * int(bucket_size_multiplier))
+    self.generator = generator
+    if self.batch_size <= 0:
+      raise ValueError("batch_size must be positive")
+
+  def __iter__(self) -> Iterator[List[int]]:
+    indices = list(range(len(self.lengths)))
+    indices.sort(key=lambda i: self.lengths[i])
+    buckets = [
+      indices[i:i + self.bucket_size]
+      for i in range(0, len(indices), self.bucket_size)
+    ]
+
+    if self.shuffle:
+      bucket_order = torch.randperm(len(buckets), generator=self.generator).tolist()
+    else:
+      bucket_order = list(range(len(buckets)))
+
+    for bucket_idx in bucket_order:
+      bucket = list(buckets[bucket_idx])
+      batches = [
+        bucket[start:start + self.batch_size]
+        for start in range(0, len(bucket), self.batch_size)
+      ]
+      if self.shuffle:
+        batch_order = torch.randperm(len(batches), generator=self.generator).tolist()
+      else:
+        batch_order = list(range(len(batches)))
+      for batch_idx in batch_order:
+        batch = batches[batch_idx]
+        if len(batch) == self.batch_size or not self.drop_last:
+          yield batch
+
+  def __len__(self) -> int:
+    if self.drop_last:
+      return len(self.lengths) // self.batch_size
+    return (len(self.lengths) + self.batch_size - 1) // self.batch_size
 
 
 def _extract_patient_tissue_id(

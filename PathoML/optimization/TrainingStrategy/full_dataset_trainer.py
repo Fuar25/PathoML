@@ -88,7 +88,13 @@ class FullDatasetTrainer(Strategy, TrainingMixin):
 
     # (3) EarlyStopping manages checkpoint
     ckpt_path = os.path.join(self.logging_cfg.save_dir, 'model_training_best.pth')
-    early_stopping = EarlyStopping(self.training_cfg.patience, model, ckpt_path)
+    early_stopping = EarlyStopping(
+      self.training_cfg.patience,
+      model,
+      ckpt_path,
+      monitor_name=self.training_cfg.early_stopping_metric,
+      min_delta=self.training_cfg.min_delta,
+    )
 
     # (4) Train with early stopping
     self._run_train_val_loop(

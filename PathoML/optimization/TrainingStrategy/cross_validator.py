@@ -164,7 +164,13 @@ class CrossValidator(Strategy, TrainingMixin):
 
     # (4) EarlyStopping manages checkpoint internally
     ckpt_path = os.path.join(self.logging_cfg.save_dir, f'model_fold_{fold}_best.pth')
-    early_stopping = EarlyStopping(self.training_cfg.patience, model, ckpt_path)
+    early_stopping = EarlyStopping(
+      self.training_cfg.patience,
+      model,
+      ckpt_path,
+      monitor_name=self.training_cfg.early_stopping_metric,
+      min_delta=self.training_cfg.min_delta,
+    )
 
     # (5) Run training loop (with TensorBoard logging)
     tb_dir = os.path.join(self.logging_cfg.save_dir, f"fold_{fold}")
@@ -175,6 +181,7 @@ class CrossValidator(Strategy, TrainingMixin):
 
     # (6) Restore best weights and evaluate on test set
     early_stopping.load_best()
+    _, _, val_auc, _ = self._evaluate_with_auc(model, val_loader, criterion)
 
     # (6.1) Inject fold metadata into checkpoint for downstream CV verification
     if fold_meta is not None:
@@ -192,7 +199,7 @@ class CrossValidator(Strategy, TrainingMixin):
     result = FoldResult(
       fold=fold,
       best_epoch=early_stopping.best_epoch,
-      val_auc=early_stopping.best_val_auc,
+      val_auc=val_auc,
       test_loss=test_loss,
       test_acc=test_acc,
       test_auc=test_auc,
