@@ -19,7 +19,7 @@ from distillation.losses import (
 # 配置区 — 修改此处
 # =============================================================================
 
-TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp')
+TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32')
 
 GAMMA_D = 1      # L_dist 权重（distance-wise）
 GAMMA_A = 2      # L_angle 权重（angle-wise）

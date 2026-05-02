@@ -72,7 +72,6 @@ class StudentTransABMIL_MH(nn.Module):
     n_transformer_layers: int = 2,
     nhead: int = 4,
     pool_heads: int = 4,
-    proj_dim: int | None = None,
   ) -> None:
     """
     Args:
@@ -96,8 +95,6 @@ class StudentTransABMIL_MH(nn.Module):
     # (2) 多头聚合 + 分类
     self.aggregator = CrossAttentionPooling(hidden_dim, pool_heads, dropout)
     self.classifier = LinearClassifier(hidden_dim, 1, dropout)
-    # (3) Projection head
-    self.proj_head = nn.Linear(hidden_dim, proj_dim) if proj_dim else None
 
   def forward(self, data: dict) -> dict:
     patches = data['he_patches']                          # (B, N, patch_dim)
@@ -111,7 +108,4 @@ class StudentTransABMIL_MH(nn.Module):
            'encoded': encoded}
     if mask is not None:
       out['mask'] = mask
-    if self.proj_head is not None:
-      out['proj'] = self.proj_head(bag_embeddings)
-      out['encoded_proj'] = self.proj_head(encoded)
     return out

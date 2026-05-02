@@ -1,8 +1,4 @@
-"""K-fold entry point for cosine-logit teacher-guided attention distillation.
-
-This script keeps the historical no-detach cosine-logit TGA condition as
-one corner of the current 2x2 experimental TGA ablation.
-"""
+"""K-fold entry point for confidence-gated cosine-logit TGA."""
 
 from distillation.experiments.common import (
   default_teacher_manifest_path,
@@ -12,16 +8,22 @@ from distillation.experiments.common import (
 )
 from distillation.losses import (
   CompositeDistillationLoss,
-  CosineAttentionLogitLoss,
+  ConfidenceGatedCosineAttentionLogitLoss,
   TaskLoss,
 )
 
 TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32')
 
+MIN_CONFIDENCE = 0.0
+
+
 def make_distill_loss() -> CompositeDistillationLoss:
   return CompositeDistillationLoss([
     TaskLoss(),
-    CosineAttentionLogitLoss(),
+    ConfidenceGatedCosineAttentionLogitLoss(
+      detach_target_encoded=False,
+      min_confidence=MIN_CONFIDENCE,
+    ),
   ])
 
 

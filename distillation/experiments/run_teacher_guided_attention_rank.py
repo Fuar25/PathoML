@@ -1,7 +1,9 @@
-"""K-fold entry point for cosine-logit teacher-guided attention distillation.
+"""K-fold entry point for cosine-rank teacher-guided attention distillation.
 
-This script keeps the historical no-detach cosine-logit TGA condition as
-one corner of the current 2x2 experimental TGA ablation.
+This is the first constrained variant under the `teacher_guided_attention`
+family on the fixed `StudentBasicABMIL` platform. It replaces the
+cosine-logit regression target with cosine-derived pairwise rank
+supervision while keeping the rest of the protocol fixed.
 """
 
 from distillation.experiments.common import (
@@ -12,16 +14,17 @@ from distillation.experiments.common import (
 )
 from distillation.losses import (
   CompositeDistillationLoss,
-  CosineAttentionLogitLoss,
+  CosineAttentionRankLoss,
   TaskLoss,
 )
 
 TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32')
 
+
 def make_distill_loss() -> CompositeDistillationLoss:
   return CompositeDistillationLoss([
     TaskLoss(),
-    CosineAttentionLogitLoss(),
+    CosineAttentionRankLoss(),
   ])
 
 

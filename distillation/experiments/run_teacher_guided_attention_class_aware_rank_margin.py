@@ -1,8 +1,4 @@
-"""K-fold entry point for cosine-logit teacher-guided attention distillation.
-
-This script keeps the historical no-detach cosine-logit TGA condition as
-one corner of the current 2x2 experimental TGA ablation.
-"""
+"""K-fold entry point for class-aware rank-margin TGA."""
 
 from distillation.experiments.common import (
   default_teacher_manifest_path,
@@ -11,17 +7,29 @@ from distillation.experiments.common import (
   run_condition, log_results, load_distill_dataset, load_manifest,
 )
 from distillation.losses import (
+  ClassAwareAttentionRankMarginLoss,
   CompositeDistillationLoss,
-  CosineAttentionLogitLoss,
   TaskLoss,
 )
 
-TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32')
+TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32_lr4em4')
+
+HIDDEN_WEIGHT = 0.5
+CLASS_WEIGHT = 0.5
+TOP_RATIO = 0.25
+MARGIN = 1.0
+
 
 def make_distill_loss() -> CompositeDistillationLoss:
   return CompositeDistillationLoss([
     TaskLoss(),
-    CosineAttentionLogitLoss(),
+    ClassAwareAttentionRankMarginLoss(
+      hidden_weight=HIDDEN_WEIGHT,
+      class_weight=CLASS_WEIGHT,
+      top_ratio=TOP_RATIO,
+      margin=MARGIN,
+      detach_target_encoded=True,
+    ),
   ])
 
 

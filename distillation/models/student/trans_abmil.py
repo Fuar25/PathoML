@@ -5,7 +5,6 @@
     → ResidualEncoder: 2层残差MLP → (B, N, hidden_dim)
     → TransformerEncoder: L层 self-attention，patch间信息交互 → (B, N, hidden_dim)
     → GatedAttention(gated=True) → bag_embeddings (B, hidden_dim)
-    → ProjectionHead: Linear(hidden_dim→proj_dim) → proj (B, proj_dim)   ← 对齐teacher
     → LinearClassifier: Dropout + Linear(hidden_dim→1) → logits (B, 1)
 """
 
@@ -62,14 +61,11 @@ class StudentTransABMIL(nn.Module):
     dropout: float = 0.2,
     n_transformer_layers: int = 2,
     nhead: int = 4,
-    proj_dim: int | None = None,
   ) -> None:
     """
     Args:
       n_transformer_layers: Transformer self-attention 层数。
       nhead: 多头注意力头数（需整除 hidden_dim）。
-      proj_dim: 蒸馏 projection head 输出维度（对齐 teacher hidden_dim）。
-                None 时不创建 projection head，'hidden' 直接用于 L_feat。
     """
     super().__init__()
     self.encoder = ResidualEncoder(patch_dim, hidden_dim, dropout)
@@ -87,8 +83,6 @@ class StudentTransABMIL(nn.Module):
     # (2) 聚合 + 分类
     self.aggregator = GatedAttention(hidden_dim, attention_dim, gated=True, dropout=dropout)
     self.classifier = LinearClassifier(hidden_dim, 1, dropout)
-    # (3) Projection head（蒸馏特征对齐用）
-    self.proj_head = nn.Linear(hidden_dim, proj_dim) if proj_dim else None
 
   def forward(self, data: dict) -> dict:
     patches = data['he_patches']                          # (B, N, patch_dim)
@@ -104,7 +98,4 @@ class StudentTransABMIL(nn.Module):
            'encoded': encoded}                            # (B, N, hidden_dim)
     if mask is not None:
       out['mask'] = mask                                  # (B, N)
-    if self.proj_head is not None:
-      out['proj'] = self.proj_head(bag_embeddings)        # (B, proj_dim)
-      out['encoded_proj'] = self.proj_head(encoded)       # (B, N, proj_dim)
     return out

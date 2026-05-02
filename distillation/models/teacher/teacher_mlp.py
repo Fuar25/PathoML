@@ -8,6 +8,7 @@
   out = teacher(x)  # x: (B, 1536)，input_dim 自动从 checkpoint 推断
   # out['hidden']: (B, 256)，Linear+GELU后（无Dropout）
   # out['logit']:  (B, 1)，最终BCE logit
+  # out['class_weight']: (hidden_dim,)，最终分类器的正类方向
 """
 
 from __future__ import annotations
@@ -49,10 +50,12 @@ class TeacherMLP(nn.Module):
       dict，包含：
         - 'hidden': (B, hidden_dim)，Linear+GELU后、Dropout前的表示
         - 'logit':  (B, 1)，用于BCE的原始logit
+        - 'class_weight': (hidden_dim,)，最终分类器正类方向
     """
     hidden = self.net[:2](x)       # Linear + GELU，不含Dropout
     logit = self.net[2:](hidden)   # Dropout + Linear
-    return {'hidden': hidden, 'logit': logit}
+    class_weight = self.net[3].weight.squeeze(0)
+    return {'hidden': hidden, 'logit': logit, 'class_weight': class_weight}
 
   @classmethod
   def from_checkpoint(cls, ckpt_path: str) -> 'TeacherMLP':

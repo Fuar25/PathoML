@@ -1,4 +1,8 @@
-"""K-fold entry point for standard knowledge distillation."""
+"""K-fold entry point for the ABMIL task-only baseline.
+
+This is the non-distilled baseline for the current active line:
+fixed teacher artifact + fixed `StudentBasicABMIL` + MIL distillation comparison.
+"""
 
 from distillation.experiments.common import (
   default_teacher_manifest_path,
@@ -6,39 +10,24 @@ from distillation.experiments.common import (
   build_runtime_config,
   run_condition, log_results, load_distill_dataset, load_manifest,
 )
-from distillation.losses import CompositeDistillationLoss, SoftLabelLoss, TaskLoss
+from distillation.losses import CompositeDistillationLoss, TaskLoss
 
-
-# =============================================================================
-# 配置区 — 修改此处
-# =============================================================================
 
 TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32')
 
-SOFT_LABEL_T = 4.0
-
-
-# =============================================================================
-# 配置构建
-# =============================================================================
 
 def make_distill_loss() -> CompositeDistillationLoss:
   return CompositeDistillationLoss([
     TaskLoss(),
-    SoftLabelLoss(temperature=SOFT_LABEL_T),
   ])
 
 
 def make_config():
   distill_loss = make_distill_loss()
-  condition_name = build_condition_name('standard_kd', distill_loss)
+  condition_name = build_condition_name('task_only_baseline', distill_loss)
   config = build_runtime_config()
   return condition_name, distill_loss, config
 
-
-# =============================================================================
-# 主流程
-# =============================================================================
 
 def main():
   manifest = load_manifest(TEACHER_MANIFEST)

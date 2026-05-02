@@ -1,4 +1,4 @@
-"""K-fold entry point for standard knowledge distillation."""
+"""K-fold entry point for strict decoupled knowledge distillation."""
 
 from distillation.experiments.common import (
   default_teacher_manifest_path,
@@ -6,7 +6,11 @@ from distillation.experiments.common import (
   build_runtime_config,
   run_condition, log_results, load_distill_dataset, load_manifest,
 )
-from distillation.losses import CompositeDistillationLoss, SoftLabelLoss, TaskLoss
+from distillation.losses import (
+  CompositeDistillationLoss,
+  DecoupledKnowledgeDistillationLoss,
+  TaskLoss,
+)
 
 
 # =============================================================================
@@ -15,7 +19,9 @@ from distillation.losses import CompositeDistillationLoss, SoftLabelLoss, TaskLo
 
 TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32')
 
-SOFT_LABEL_T = 4.0
+DKD_T = 4.0
+DKD_ALPHA = 1.0
+DKD_BETA = 4.0
 
 
 # =============================================================================
@@ -25,13 +31,17 @@ SOFT_LABEL_T = 4.0
 def make_distill_loss() -> CompositeDistillationLoss:
   return CompositeDistillationLoss([
     TaskLoss(),
-    SoftLabelLoss(temperature=SOFT_LABEL_T),
+    DecoupledKnowledgeDistillationLoss(
+      temperature=DKD_T,
+      alpha=DKD_ALPHA,
+      beta=DKD_BETA,
+    ),
   ])
 
 
 def make_config():
   distill_loss = make_distill_loss()
-  condition_name = build_condition_name('standard_kd', distill_loss)
+  condition_name = build_condition_name('decoupled_kd', distill_loss)
   config = build_runtime_config()
   return condition_name, distill_loss, config
 

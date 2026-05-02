@@ -11,16 +11,43 @@ from PathoML.dataset.utils import find_common_sample_keys, fingerprint_sample_ke
 from PathoML.optimization.trainer import Trainer
 
 from distillation.dataset import DistillationDataset
-from distillation.models.student import StudentTransABMIL
+from distillation.models.student import StudentBasicABMIL
 from distillation.runtime import DistillCrossValidator, load_manifest
 
 
 # ─── Data roots ──────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PATCH_FEAT_ROOT = str(PROJECT_ROOT / 'Features' / 'GigaPath-Patch-Feature')
-SLIDE_FEAT_ROOT = str(PROJECT_ROOT / 'Features' / 'GigaPath-Slide-Feature')
-LABELS_CSV = str(PROJECT_ROOT / 'Features' / 'labels.csv')
+RUNS_ROOT = Path(
+  os.environ.get('PATHOML_RUNS_ROOT', str(PROJECT_ROOT.parent / 'PathoML-runs'))
+)
+EXPERIMENT_SOURCE_ROOT = Path(
+  os.environ.get('PATHOML_EXPERIMENT_SOURCE_ROOT', str(PROJECT_ROOT))
+)
+PATCH_FEAT_ROOT = os.environ.get(
+  'PATHOML_PATCH_FEATURE_ROOT',
+  str(EXPERIMENT_SOURCE_ROOT / 'Features' / 'GigaPath-Patch-Feature'),
+)
+SLIDE_FEAT_ROOT = os.environ.get(
+  'PATHOML_SLIDE_FEATURE_ROOT',
+  str(EXPERIMENT_SOURCE_ROOT / 'Features' / 'GigaPath-Slide-Feature'),
+)
+LABELS_CSV = os.environ.get(
+  'PATHOML_LABELS_CSV',
+  str(EXPERIMENT_SOURCE_ROOT / 'Features' / 'labels.csv'),
+)
+TEACHER_OUTPUTS_ROOT = Path(
+  os.environ.get(
+    'PATHOML_TEACHER_OUTPUTS_ROOT',
+    str(RUNS_ROOT / 'teacher'),
+  )
+)
+TEACHER_WINNER_ROOT = Path(
+  os.environ.get('PATHOML_TEACHER_WINNER_ROOT', str(RUNS_ROOT / 'teacher-winners'))
+)
+DEFAULT_TEACHER_MANIFEST = Path(
+  os.environ.get('PATHOML_TEACHER_MANIFEST', str(TEACHER_WINNER_ROOT / 'manifest.json'))
+)
 
 
 # ─── Default hyperparameters ────────────────────────────────────────────────
@@ -33,15 +60,22 @@ BATCH_SIZE = 16
 DEVICE     = 'cuda:0'
 
 STUDENT_KWARGS = dict(
-  patch_dim=1536, hidden_dim=256, attention_dim=128, dropout=0.2,
-  n_transformer_layers=2, nhead=4, proj_dim=128,
+  patch_dim=1536,
+  hidden_dim=128,
+  attention_dim=128,
+  dropout=0.2,
 )
 
 
 # ─── Output paths ───────────────────────────────────────────────────────────
 
-OUTPUTS_DIR     = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs')
-SHARED_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results_log.txt')
+OUTPUTS_DIR = str(
+  Path(os.environ.get('PATHOML_DISTILLATION_OUTPUTS_ROOT', str(RUNS_ROOT / 'distillation')))
+)
+SHARED_LOG_FILE = os.path.join(
+  os.path.dirname(os.path.abspath(__file__)),
+  'results_log_mil_abmil.txt',
+)
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -89,9 +123,14 @@ def build_runtime_config(*, device: str = DEVICE) -> RunTimeConfig:
   return config
 
 
-def default_teacher_manifest_path(condition_name: str) -> str:
+def default_teacher_manifest_path(condition_name: str | None = None) -> str:
   """Return the default teacher manifest path for a named teacher condition."""
-  return str(PROJECT_ROOT / 'teacher' / 'experiments' / 'outputs' / condition_name / 'manifest.json')
+  if os.environ.get('PATHOML_TEACHER_MANIFEST'):
+    return str(DEFAULT_TEACHER_MANIFEST)
+  if os.environ.get('PATHOML_TEACHER_OUTPUTS_ROOT') and condition_name:
+    return str(TEACHER_OUTPUTS_ROOT / condition_name / 'manifest.json')
+  _ = condition_name
+  return str(DEFAULT_TEACHER_MANIFEST)
 
 
 def load_distill_dataset(
@@ -151,10 +190,10 @@ def run_distill_cv(
   """Run one K-fold distillation CV pass and return `(fold_aucs, fold_f1s)`.
 
   Args:
-    student_builder: Optional student factory. Defaults to `StudentTransABMIL`.
+    student_builder: Optional student factory. Defaults to `StudentBasicABMIL`.
   """
   if student_builder is None:
-    student_builder = lambda: StudentTransABMIL(**student_kwargs)
+    student_builder = lambda: StudentBasicABMIL(**student_kwargs)
   cv = DistillCrossValidator(
     student_builder   = student_builder,
     dataset           = dataset,
@@ -182,7 +221,7 @@ def run_condition(
   """Run `manifest.n_runs` CV passes for one named condition.
 
   Args:
-    student_builder: Optional student factory. Defaults to `StudentTransABMIL`.
+    student_builder: Optional student factory. Defaults to `StudentBasicABMIL`.
 
   Returns:
     dict with keys: run_means, all_fold_aucs, run_f1_means, all_fold_f1s
@@ -235,7 +274,6 @@ def log_results(
   stains: list[str] | None = None,
 ) -> None:
   """Append a timestamped AUC/F1 summary table to the shared experiment log."""
-  condition_width = 88
   sep  = "=" * 100
   hsep = "─" * 100
   lines = [
@@ -243,17 +281,16 @@ def log_results(
     f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]  "
     f"conditions: {', '.join(results.keys())}",
     hsep,
-    f"{'condition':<{condition_width}}  {'run-level AUC (mean±std)':<28}  "
+    f"{'run-level AUC (mean±std)':<28}  "
     f"{'fold-level AUC (mean±std)':<28}  fold-level F1 (mean±std)",
     hsep,
   ]
-  for name, data in results.items():
+  for data in results.values():
     run_means = np.array(data["run_means"])
     fold_aucs = np.array(data["all_fold_aucs"])
     fold_f1s  = np.array(data.get("all_fold_f1s", []))
     f1_str = f"{fold_f1s.mean():.4f} ± {fold_f1s.std():.4f}" if len(fold_f1s) > 0 else "N/A"
     lines.append(
-      f"{name:<{condition_width}}  "
       f"{run_means.mean():.4f} ± {run_means.std():.4f}              "
       f"{fold_aucs.mean():.4f} ± {fold_aucs.std():.4f}              "
       f"{f1_str}"
@@ -274,7 +311,7 @@ def log_results(
     lines.append(
       f"epochs={t.epochs}  patience={t.patience}  "
       f"lr={t.learning_rate}  wd={t.weight_decay}  "
-      f"batch_size={t.batch_size}  device={t.device}"
+      f"batch_size={t.batch_size}  min_delta={t.min_delta}  device={t.device}"
     )
   if distill_loss:
     lines.append(f"loss_design: {describe_loss_design(distill_loss)}")

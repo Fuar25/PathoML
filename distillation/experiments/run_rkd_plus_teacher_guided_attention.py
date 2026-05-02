@@ -1,8 +1,6 @@
-"""K-fold entry point for cosine-logit teacher-guided attention distillation.
+"""K-fold entry point for RKD plus cosine-logit TGA."""
 
-This script keeps the historical no-detach cosine-logit TGA condition as
-one corner of the current 2x2 experimental TGA ablation.
-"""
+import os
 
 from distillation.experiments.common import (
   default_teacher_manifest_path,
@@ -13,15 +11,28 @@ from distillation.experiments.common import (
 from distillation.losses import (
   CompositeDistillationLoss,
   CosineAttentionLogitLoss,
+  RKDAngleLoss,
+  RKDDistanceLoss,
   TaskLoss,
+  WeightedTerm,
 )
 
-TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32')
+TEACHER_MANIFEST = default_teacher_manifest_path('run_concat_HE_CD20_CD3_mlp_bs32_lr4em4')
+
+GAMMA_D = 1.0
+GAMMA_A = 2.0
+TGA_WEIGHT = float(os.environ.get('PATHOML_TGA_WEIGHT', '0.25'))
+
 
 def make_distill_loss() -> CompositeDistillationLoss:
   return CompositeDistillationLoss([
     TaskLoss(),
-    CosineAttentionLogitLoss(),
+    WeightedTerm(RKDDistanceLoss(), GAMMA_D),
+    WeightedTerm(RKDAngleLoss(), GAMMA_A),
+    WeightedTerm(
+      CosineAttentionLogitLoss(detach_target_encoded=False),
+      TGA_WEIGHT,
+    ),
   ])
 
 
@@ -29,7 +40,7 @@ def main():
   manifest = load_manifest(TEACHER_MANIFEST)
   dataset, intersection_names = load_distill_dataset(manifest)
   distill_loss = make_distill_loss()
-  cond_name = build_condition_name('teacher_guided_attention', distill_loss)
+  cond_name = build_condition_name('rkd_tga', distill_loss)
   print(f"\n{'#'*70}\n# {cond_name}  {distill_loss.describe()}\n{'#'*70}")
   config = build_runtime_config()
   results = run_condition(cond_name, config, distill_loss, manifest, dataset)

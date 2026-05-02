@@ -7,14 +7,21 @@ from .base import (
   WeightedTerm,
 )
 from .terms import (
-  ContrastiveTeacherDiscriminationLoss,
+  BatchContrastiveAttentionLoss,
+  ClassAwareAttentionRankMarginLoss,
+  ClassAwareCosineAttentionLogitLoss,
+  ConfidenceGatedCosineAttentionLogitLoss,
   CosineAttentionLogitLoss,
-  DiscriminationAttentionLogitLoss,
+  CosineAttentionRankLoss,
+  DecoupledKnowledgeDistillationLoss,
   HiddenLoss,
   RKDAngleLoss,
   RKDDistanceLoss,
+  SimilarityPreservingLoss,
+  SoftDistributionAttentionLoss,
   SoftLabelLoss,
   TaskLoss,
+  TopKCosineAttentionLogitLoss,
 )
 
 __all__ = [
@@ -24,10 +31,17 @@ __all__ = [
   'WeightedTerm',
   'TaskLoss',
   'HiddenLoss',
+  'SimilarityPreservingLoss',
   'SoftLabelLoss',
+  'DecoupledKnowledgeDistillationLoss',
   'RKDDistanceLoss',
   'RKDAngleLoss',
+  'BatchContrastiveAttentionLoss',
+  'ClassAwareAttentionRankMarginLoss',
+  'ClassAwareCosineAttentionLogitLoss',
+  'ConfidenceGatedCosineAttentionLogitLoss',
   'CosineAttentionLogitLoss',
-  'DiscriminationAttentionLogitLoss',
-  'ContrastiveTeacherDiscriminationLoss',
+  'CosineAttentionRankLoss',
+  'SoftDistributionAttentionLoss',
+  'TopKCosineAttentionLogitLoss',
 ]

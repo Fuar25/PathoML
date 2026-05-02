@@ -6,6 +6,7 @@
     → GatedAttention(gated=True) → bag_embeddings (B, hidden_dim)  ← 'hidden'，对齐teacher
     → LinearClassifier: Dropout + Linear(hidden_dim→1) → logits (B, 1)
 
+hidden_dim 与 teacher hidden_dim 保持一致（默认128）。
 forward 接收 dict（与 PathoML TrainingMixin._model_inputs 约定一致），取 'he_patches'。
 """
 
@@ -22,21 +23,14 @@ class StudentBasicABMIL(nn.Module):
   def __init__(
     self,
     patch_dim: int = 1536,
-    hidden_dim: int = 256,
+    hidden_dim: int = 128,
     attention_dim: int = 128,
     dropout: float = 0.2,
-    proj_dim: int | None = None,
   ) -> None:
-    """
-    Args:
-      proj_dim: 蒸馏 projection head 输出维度（对齐 teacher hidden_dim）。
-                None 时不创建 projection head，'hidden' 直接用于 L_feat。
-    """
     super().__init__()
     self.encoder    = FeatureEncoder(patch_dim, hidden_dim, dropout)
     self.aggregator = GatedAttention(hidden_dim, attention_dim, gated=True, dropout=dropout)
     self.classifier = LinearClassifier(hidden_dim, 1, dropout)
-    self.proj_head  = nn.Linear(hidden_dim, proj_dim) if proj_dim else None
 
   def forward(self, data: dict) -> dict:
     patches = data['he_patches']                          # (B, N, patch_dim)
@@ -49,7 +43,4 @@ class StudentBasicABMIL(nn.Module):
            'encoded': encoded}                            # (B, N, hidden_dim)
     if mask is not None:
       out['mask'] = mask                                  # (B, N)
-    if self.proj_head is not None:
-      out['proj'] = self.proj_head(bag_embeddings)        # (B, proj_dim)
-      out['encoded_proj'] = self.proj_head(encoded)       # (B, N, proj_dim)
     return out
