@@ -4,40 +4,54 @@
 Provide the stable extension-point package for distillation losses.
 
 ## 2. Scope / Owns
-This package owns:
+- Own:
 - `DistillationLoss`
 - `DistillationTerm`
 - `CompositeDistillationLoss`
-- the atomic distillation loss terms
+- atomic distillation loss terms
 - loss-local helper functions
 
 ## 3. Public Contracts
 - `DistillationLoss`
 - `DistillationTerm`
 - `CompositeDistillationLoss`
+- `WeightedTerm`
 - `TaskLoss`
 - `HiddenLoss`
+- `SimilarityPreservingLoss`
 - `SoftLabelLoss`
+- `DecoupledKnowledgeDistillationLoss`
 - `RKDDistanceLoss`
 - `RKDAngleLoss`
 - `CosineAttentionLogitLoss`
-- `DiscriminationAttentionLogitLoss`
-- `ContrastiveTeacherDiscriminationLoss`
+- `ClassAwareCosineAttentionLogitLoss`
+- `ClassAwareAttentionRankMarginLoss`
+- `ConfidenceGatedCosineAttentionLogitLoss`
+- `CosineAttentionRankLoss`
+- `TopKCosineAttentionLogitLoss`
+- `SoftDistributionAttentionLoss`
+- `BatchContrastiveAttentionLoss`
 
 ## 4. Invariants
-- Distillation methods are built by composing explicit atomic terms.
-- Trainer code should not need edits when adding a new loss class.
-- `L_task` is explicit; it is not implicitly injected by the composite loss.
-- Human-readable loss formulas and condition-name slugs are derived from the active terms.
+- Build methods from explicit atomic terms.
+- Add loss classes without trainer edits.
+- Keep `L_task` explicit; do not inject it in composite loss.
+- Derive human-readable formulas and condition slugs from active terms.
+- Respect bag masks in attention-target terms.
+- Keep attention-target terms finite on edge cases (`B=1`, single-instance bag, constant bag).
+- Encode `detach/no-detach` variants explicitly in `describe()` and `slug()`.
+- Encode confidence-gated variants explicitly in `describe()` and `slug()`.
+- Class-aware attention terms require teacher output field `class_weight`.
+- Rank-margin attention terms compare teacher-selected top and bottom valid patches.
 
 ## 5. Change Rules
-- Add new reusable behaviors as new atomic terms before introducing a new family wrapper.
-- Update this file if the required student/teacher output contract changes.
+- Add reusable behavior as atomic terms before adding family wrappers.
+- Update this file when student or teacher output contracts change.
 
 ## Decided
-- `losses` is a first-class package because it is expected to keep growing.
-- The primary extension point is now `DistillationTerm + CompositeDistillationLoss`.
-- Legacy family-style wrappers may exist for migration or compatibility, but experiment scripts should use explicit term composition.
+- Keep `losses` as a first-class package
+- Use `DistillationTerm + CompositeDistillationLoss` as the primary extension point
+- Keep legacy family wrappers only for migration or compatibility
 
 ## TODO
-1. Reintroduce non-mainline historical terms such as mean-bypass only if they become active experiment designs again.
+1. Reintroduce non-mainline historical terms (for example mean-bypass) only if they become active again.

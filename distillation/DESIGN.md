@@ -1,7 +1,7 @@
 # distillation
 
 ## 1. Purpose
-Distillation is a research subsystem that transfers teacher knowledge into HE-only student models while reusing the shared PathoML runtime where possible.
+Transfer teacher knowledge to HE-only student models while reusing shared PathoML runtime.
 
 ## 2. Scope / Owns
 This subsystem owns:
@@ -23,14 +23,14 @@ This subsystem does not own:
 - `distillation.losses.DistillationLoss`
 - `distillation.runtime.DistillCrossValidator`
 
-The subsystem consumes teacher artifacts through:
+Teacher artifacts are consumed through:
 - `manifest.json`
-- fold checkpoint metadata (`fold`, `train_fold`, `test_fold`, and optional extra metadata)
+- fold split metadata (`train_fold`, `test_fold`, and optional extra metadata)
 
 ## 4. Invariants
-- Distillation consumes teacher artifacts, not teacher experiment internals.
-- Distillation reuses the shared `CrossValidator` instead of maintaining a separate full runtime.
-- Fold-split verification remains mandatory at runtime before teacher checkpoints are trusted.
+- Consume teacher artifacts, not teacher experiment internals.
+- Reuse shared `CrossValidator` rather than a separate full runtime.
+- Verify fold splits before trusting teacher checkpoints.
 
 ## 5. Change Rules
 - Keep shared logic in `PathoML` unless it is distillation-specific.
@@ -38,9 +38,9 @@ The subsystem consumes teacher artifacts through:
 - If the teacher artifact contract changes, update this file and `distillation/runtime/DESIGN.md`.
 
 ## Decided
-- Distillation remains a peer subsystem to teacher, not a subfolder of teacher.
-- Teacher manifest loading is the formal entry point for teacher configuration inheritance.
-- Distillation owns package-level `dataset/`, `losses/`, and `runtime/` areas because these are growing subsystem boundaries.
+- Distillation is a peer subsystem to teacher.
+- Teacher manifest loading is the formal configuration entry point.
+- Distillation owns package-level `dataset/`, `losses/`, and `runtime/` boundaries.
 
 ## TODO
-1. Revisit a dedicated distillation runtime only if reuse of `CrossValidator` becomes a real constraint.
+1. Revisit a dedicated distillation runtime only if `CrossValidator` reuse becomes a real constraint.

@@ -1,7 +1,7 @@
 # PathoML/optimization/trainer
 
 ## 1. Purpose
-Concrete training runtime structure behind the shared optimization layer.
+Define concrete training runtime structure behind the shared optimization layer.
 
 ## 2. Scope / Owns
 This module family owns:
@@ -26,19 +26,20 @@ result = Trainer(strategy).fit()
 `CrossValidator` accepts optional `checkpoint_metadata` through the strategy instance before `fit()`.
 
 ## 4. Invariants
-- `Trainer` is only a thin dispatcher.
-- `TrainingMixin` contains the shared epoch/evaluation logic.
-- `CrossValidator` owns fold orchestration and writes fold checkpoints plus `cv_predictions.csv`.
-- Fold checkpoints include fold membership metadata for downstream verification.
+- Keep `Trainer` as a thin dispatcher.
+- Keep shared epoch/evaluation logic in `TrainingMixin`.
+- Keep early-stopping configurable via shared `TrainingConfig` (`val_auc` / `patient_f1`, with `patience` and `min_delta`).
+- Keep `CrossValidator` responsible for fold orchestration and writing fold checkpoints plus `cv_predictions.csv`.
+- Keep fold-membership metadata in checkpoints for downstream verification.
 
 ## 5. Change Rules
 - Keep shared training logic in `TrainingMixin` unless it becomes subsystem-specific.
-- Add new strategy-level behaviors through strategy composition or lightweight extension points before copying the runtime.
-- If checkpoint metadata shape changes, update the consuming subsystem docs.
+- Add strategy-level behavior through composition or lightweight extension points before copying runtime.
+- If checkpoint metadata shape changes, update consuming subsystem docs.
 
 ## Decided
-- `CrossValidator` remains the shared backbone for both teacher and distillation.
-- Strategy instances may attach extra checkpoint metadata without changing the trainer entry API.
+- `CrossValidator` remains shared backbone for teacher and distillation.
+- Strategy instances may attach extra checkpoint metadata without changing trainer entry API.
 
 ## TODO
 1. Add formal post-run hooks only when multiple subsystems need them.

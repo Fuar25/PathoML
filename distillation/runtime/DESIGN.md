@@ -1,7 +1,7 @@
 # distillation/runtime
 
 ## 1. Purpose
-Own the distillation-specific runtime adaptation around the shared PathoML training backbone.
+Own distillation-specific runtime adaptation around shared PathoML training runtime.
 
 ## 2. Scope / Owns
 This package owns:
@@ -19,18 +19,21 @@ This package does not own:
 - `TeacherManifest`
 - `load_manifest(manifest_path)`
 - `DistillCrossValidator(...)`
+- Default experiment helpers consume the fixed teacher winner manifest at `../PathoML-runs/teacher-winners/manifest.json`.
+- Teacher forward outputs consumed by losses: `hidden`, `logit`, and optional loss-specific fields such as `class_weight`
 
 ## 4. Invariants
-- Distillation still reuses `PathoML` shared cross-validation runtime.
-- Teacher checkpoints are verified against distillation fold splits before training proceeds.
-- Teacher artifacts remain the only formal interface from teacher to distillation.
+- Reuse shared `PathoML` cross-validation runtime.
+- Verify teacher checkpoints against distillation fold splits before training.
+- Use teacher artifacts as the only formal teacher-to-distillation interface.
+- Keep the fixed winner path as a convenience default; runtime loading still accepts an explicit manifest path.
 
 ## 5. Change Rules
 - Keep subsystem-specific orchestration here, not in `PathoML`.
 - If the teacher artifact contract changes, update this file and `teacher/DESIGN.md`.
 
 ## Decided
-- `runtime` is package-level because manifest handling and trainer adaptation are part of one subsystem boundary.
+- Keep `runtime` package-level because manifest handling and trainer adaptation share one boundary.
 
 ## TODO
 1. Consider deeper runtime decomposition only if trainer and artifact handling diverge substantially.

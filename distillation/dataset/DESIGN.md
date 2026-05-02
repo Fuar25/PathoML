@@ -1,7 +1,7 @@
 # distillation/dataset
 
 ## 1. Purpose
-Own the distillation-specific dataset assembly that combines HE patch features with ordered slide-level teacher inputs.
+Own distillation-specific dataset assembly for HE patch features and ordered slide-level teacher inputs.
 
 ## 2. Scope / Owns
 This package owns:
@@ -15,25 +15,19 @@ This package does not own:
 
 ## 3. Public Contracts
 - `DistillationDataset(patch_root, slide_root, slide_stains, labels_csv, ...)`
-- dataset items expose:
-  - `he_patches`
-  - `slide_concat`
-  - `label`
-  - `patient_id`
-  - `tissue_id`
-  - `slide_id`
+- Dataset item fields: `he_patches`, `slide_concat`, `label`, `patient_id`, `tissue_id`, `slide_id`
 
 ## 4. Invariants
-- `slide_concat` respects the order of `slide_stains`.
-- Sample ordering is stable because sample keys are sorted.
-- Shared scanning logic continues to come from `PathoML.dataset.utils`.
+- `slide_concat` follows `slide_stains` order.
+- Sample ordering stays stable via sorted sample keys.
+- Shared scanning logic comes from `PathoML.dataset.utils`.
 
 ## 5. Change Rules
 - Keep only distillation-specific assembly logic here.
-- If the dataset item contract changes, update `distillation/DESIGN.md` and the loss/runtime docs when relevant.
+- If the dataset item contract changes, update `distillation/DESIGN.md` and relevant loss/runtime docs.
 
 ## Decided
-- Distillation keeps its own dataset package because the assembly is not shared with teacher.
+- Distillation keeps its own dataset package because this assembly is not shared with teacher.
 
 ## TODO
-1. Split more helpers out only if the package grows beyond a single cohesive assembly unit.
+1. Split more helpers only if this package grows beyond one cohesive assembly unit.

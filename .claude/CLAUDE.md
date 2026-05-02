@@ -3,49 +3,56 @@
 Agent guidance for this repository.
 
 ## 1. Document Roles
-- `DESIGN.md`: stable facts, ownership, interfaces, invariants, and architectural decisions
-- `CLAUDE.md`: agent-only guidance, reading order, task entry points, and validation rules
-- `PLAN.md`: experiment status, results, and next steps only
+- `DESIGN.md`: stable facts, boundaries, interfaces, invariants, decisions
+- `CLAUDE.md`: agent workflow and editing rules
+- `PLAN.md`: experiment status, results, next steps
 
-Do not put experiment status into `DESIGN.md`.
-Do not put architecture changes into `PLAN.md`.
+Keep status out of `DESIGN.md`.
+Keep architecture changes out of `PLAN.md`.
 
 ## 2. Repository Shape
-- `PathoML/`: shared pathology foundation
+- `PathoML/`: shared foundation
 - `teacher/`: teacher-selection subsystem
 - `distillation/`: distillation subsystem
 - `scripts/`: misc tooling only
+- `.venv/`: project Python environment
 
-`teacher` and `distillation` are peer subsystems. They coordinate through teacher artifacts, not through direct imports of each other's internal experiment code.
+`teacher` and `distillation` are peer subsystems; they coordinate through artifacts.
+
+## 2.1 Environment Rule
+- Use the project environment in `.venv/` for Python commands, tooling, and tests.
+- Check GPU occupancy before long-running training or evaluation jobs.
+- Prefer an idle GPU for ad hoc experiment runs.
+- Bind ad hoc GPU placement with `CUDA_VISIBLE_DEVICES`.
+- Keep canonical script device config unchanged for ad hoc GPU moves.
 
 ## 3. Read Order
-Before editing a target area, read in this order:
 1. This file
-2. The subsystem-local `CLAUDE.md` if one exists
-3. The nearest relevant `DESIGN.md`
-4. The nearest `PLAN.md` only if the task depends on current experiment status
-
-Examples:
-- Editing shared training code: `PathoML/DESIGN.md` → `PathoML/optimization/DESIGN.md` → `PathoML/optimization/TRAINER_DESIGN.md`
-- Editing teacher experiments: `teacher/CLAUDE.md` → `teacher/DESIGN.md` → `teacher/experiments/DESIGN.md` → `teacher/experiments/PLAN.md`
-- Editing distillation losses: `distillation/CLAUDE.md` → `distillation/DESIGN.md` → `distillation/losses/DESIGN.md` → `distillation/experiments/PLAN.md`
+2. Subsystem `CLAUDE.md` (if present)
+3. Nearest `DESIGN.md`
+4. Nearest `PLAN.md` only when experiment status is relevant
 
 ## 4. Working Rules
-- Keep `PathoML` focused on shared contracts, utilities, and training runtime.
-- Keep teacher concrete datasets and concrete models inside `teacher/`.
-- Keep distillation-specific datasets, losses, teacher adapters, students, and experiments inside `distillation/`.
-- If a stable interface changes, update the corresponding `DESIGN.md` in the same turn.
-- If experiment results or next steps change, update the corresponding `experiments/PLAN.md` in the same turn.
-- Prefer package imports over `sys.path` manipulation.
-- Ignore generated experiment outputs, not the `experiments/` code directories themselves.
-- Preserve established naming vocabulary inside each subsystem. Do not introduce a second name for the same concept once one term is already in use.
+- Keep shared code in `PathoML`; keep subsystem-specific code in its subsystem.
+- If stable interfaces change, update the nearest `DESIGN.md` in the same turn.
+- If experiment status changes, update the matching `experiments/PLAN.md` in the same turn.
+- Use package imports; avoid `sys.path` hacks.
+- Preserve canonical naming; do not create synonyms for existing concepts.
 
 ## 5. Validation
-- Shared runtime changes: run the relevant `tests/` subset.
-- Teacher changes: validate imports and at least one representative experiment entry path.
+- Shared runtime changes: run relevant `tests/`.
+- Teacher changes: validate imports and one representative experiment entry.
 - Distillation changes: validate manifest loading, dataset construction, and experiment entry imports.
 
 ## 6. Code Style
-- Use 2-space indentation for Python.
-- Keep comments compact and structural in English.
+- Python uses 2-space indentation.
+- Comments stay short and structural.
 - Prefer explicit ownership boundaries over convenience re-exports.
+
+## 7. Documentation Writing Constitution
+- Write in short, scan-friendly phrases; remove repetition.
+- Prefer `Action + Object` rule sentences over narrative background.
+- Keep existing section skeleton unless explicitly asked to restructure.
+- Lock facts during rewrites: metrics, dates, names, symbols, paths.
+- Keep machine-facing IDs unchanged; human-facing labels may use established abbreviations.
+- Keep `Next Steps` command-style and `Decisions` in `date + decision` form.

@@ -1,7 +1,7 @@
 # PathoML/dataset
 
 ## 1. Purpose
-Shared dataset utilities and reusable base classes for pathology feature datasets.
+Provide shared dataset utilities and reusable base classes for pathology feature datasets.
 
 ## 2. Scope / Owns
 This package owns:
@@ -9,6 +9,7 @@ This package owns:
 - sample-key extraction and intersection logic
 - CSV label loading
 - variable-length collate
+- length-bucketed batch sampling for variable-length tensors
 - shared base classes for unimodal and multimodal feature datasets
 
 This package does not own:
@@ -21,23 +22,25 @@ This package does not own:
 - `find_common_sample_keys(data_root, stains, patient_id_pattern=...)`
 - `fingerprint_sample_keys(sample_keys)`
 - `_variable_size_collate(batch)`
+- `LengthBucketBatchSampler(lengths, batch_size, ...)`
 - `_extract_patient_tissue_id(filename, pattern)`
 - `load_labels_csv(csv_path)`
 
 ## 4. Invariants
-- Sample keys are `(patient_id, tissue_id)`.
-- Dataset implementations must sort samples by `(patient_id, tissue_id)` to preserve split reproducibility.
-- `slide_id`, `patient_id`, and `tissue_id` remain standard item keys for shared training code.
-- This package stays free of teacher-only concrete dataset registration.
+- Keep sample keys as `(patient_id, tissue_id)`.
+- Sort samples by `(patient_id, tissue_id)` to preserve split reproducibility.
+- Keep `slide_id`, `patient_id`, and `tissue_id` as standard item keys for shared training code.
+- Keep length bucketing based on explicit dataset metadata when available; do not load full feature tensors just to sort batches.
+- Keep this package free of teacher-only concrete dataset registration.
 
 ## 5. Change Rules
-- Put new shared parsing/scanning logic here only if it is reused by more than one subsystem.
-- Put teacher concrete datasets in `teacher/dataset/`.
-- If a new dataset item contract changes shared training expectations, update `PathoML/optimization/DESIGN.md` as well.
+- Add parsing/scanning logic here only if reused by more than one subsystem.
+- Keep teacher concrete datasets in `teacher/dataset/`.
+- If a dataset item contract changes shared training expectations, update `PathoML/optimization/DESIGN.md`.
 
 ## Decided
-- Sample-set fingerprinting is part of the shared layer because both teacher and distillation use it.
-- Shared dataset bases live in PathoML so subsystems do not duplicate scanning logic.
+- Keep sample-set fingerprinting in shared layer because teacher and distillation both use it.
+- Keep shared dataset bases in PathoML so subsystems do not duplicate scanning logic.
 
 ## TODO
-1. Add more shared base classes only when a second subsystem needs them.
+1. Add shared base classes only when a second subsystem needs them.

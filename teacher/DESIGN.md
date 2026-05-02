@@ -1,7 +1,7 @@
 # teacher
 
 ## 1. Purpose
-Teacher selection is a research subsystem that assembles concrete datasets and concrete models on top of the shared PathoML foundation and produces teacher artifacts for downstream distillation.
+Assemble concrete teacher datasets/models on shared PathoML and produce teacher artifacts for distillation.
 
 ## 2. Scope / Owns
 This subsystem owns:
@@ -19,8 +19,9 @@ This subsystem does not own:
 
 ## 3. Public Contracts
 - `teacher.runtime.load_teacher_modules()`
-- teacher artifact contract written to `experiments/outputs/<condition>/manifest.json`
-- fold checkpoints written under `experiments/outputs/<condition>/run_{run:02d}/`
+- teacher run artifacts at `../PathoML-runs/teacher/<condition>/manifest.json`
+- current distillation-facing teacher winner at `../PathoML-runs/teacher-winners/manifest.json`
+- fold checkpoints under `run_{run:02d}/` beside the manifest
 
 The teacher artifact contract includes:
 - `schema_version`
@@ -39,18 +40,24 @@ The teacher artifact contract includes:
 - `ckpt_template`
 
 ## 4. Invariants
-- Teacher concrete modules register themselves through the shared PathoML registry.
-- Teacher artifacts are the only formal interface consumed by distillation.
-- Teacher code depends on `PathoML`, but distillation does not depend on teacher experiment internals.
+- Register teacher concrete modules through shared PathoML registry.
+- Use teacher artifacts as the only formal distillation-facing interface.
+- Keep exactly one default teacher winner for distillation; document its source in `TEACHER.md`.
+- Keep dependency direction: teacher -> `PathoML`; distillation does not depend on teacher experiment internals.
+- Name slide-level dataset modules with a `_slide` suffix; reserve patch-level names for true patch/region datasets.
+- Registered multimodal patch datasets align stains by shared coordinates before feature concatenation.
+- Registered multimodal patch datasets may cache aligned tensors in memory; cached and uncached modes must return equivalent item payloads.
+- Registered patch fusion models must preserve stain boundaries before any shared patch-level projection.
 
 ## 5. Change Rules
-- Put concrete teacher datasets/models here, not in `PathoML/`.
+- Keep concrete teacher datasets/models here, not in `PathoML/`.
 - If artifact fields or semantics change, update `distillation/runtime/DESIGN.md` and `distillation/DESIGN.md` in the same turn.
-- Keep current experiment status in `teacher/experiments/PLAN.md`.
+- Keep experiment status in `teacher/experiments/PLAN.md`.
 
 ## Decided
 - Teacher experiments live under `teacher/experiments/`.
-- Teacher owns the concrete `ABMIL`, `LinearProbe`, and `MLP` models.
+- Temporary validation/analysis scripts live under `teacher/script/`.
+- Teacher owns concrete `ABMIL`, `LinearProbe`, `MLP`, and registered patch fusion MIL models.
 
 ## TODO
-1. Add more teacher concrete assemblies only when they are part of the teacher research space.
+1. Add teacher concrete assemblies only when they belong to teacher research scope.

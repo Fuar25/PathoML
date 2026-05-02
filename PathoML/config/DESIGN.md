@@ -1,7 +1,7 @@
 # PathoML/config
 
 ## 1. Purpose
-Typed runtime configuration dataclasses for shared training flows.
+Provide typed runtime configuration dataclasses for shared training flows.
 
 ## 2. Scope / Owns
 This package owns:
@@ -23,26 +23,27 @@ This package owns:
   - `model_module_paths`
   - `model_kwargs`
 - `TrainingConfig`
-  - shared training hyperparameters and runtime device
+  - shared training hyperparameters, runtime device, and early-stopping controls
+  - includes `early_stopping_metric`, `patience`, and `min_delta`
 - `LoggingConfig`
   - save directory and checkpoint behavior
 - `RunTimeConfig`
   - top-level composition of the four sections above
 
 ## 4. Invariants
-- Config dataclasses contain runtime data, not training logic.
-- Strategy-specific parameters stay on strategy constructors, not in config dataclasses.
-- Model-specific kwargs stay in `model_kwargs`.
-- Dataset-specific kwargs stay in `dataset_kwargs`.
+- Keep runtime data in config dataclasses, not training logic.
+- Keep strategy-specific parameters on strategy constructors, not config dataclasses.
+- Keep model-specific kwargs in `model_kwargs`.
+- Keep dataset-specific kwargs in `dataset_kwargs`.
 
 ## 5. Change Rules
-- Add fields only when they are shared and stable across callers.
+- Add fields only when shared and stable across callers.
 - Keep per-experiment one-off knobs out of the shared config layer.
-- If a new field changes how factories or strategies are invoked, update the corresponding design docs.
+- If a new field changes factory/strategy invocation, update corresponding design docs.
 
 ## Decided
-- `RunTimeConfig` is instantiated directly; there is no global singleton.
-- `defaults.py` holds shared constants used by multiple packages.
+- Instantiate `RunTimeConfig` directly; no global singleton.
+- Keep shared multi-package constants in `defaults.py`.
 
 ## TODO
-1. Add new config sections only after a stable shared subsystem requires them.
+1. Add config sections only after a stable shared subsystem requires them.

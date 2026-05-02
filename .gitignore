@@ -51,8 +51,4 @@ distillation/experiments/outputs/
 .github/
 
 # ─── 脚本（实验性，按需 git add -f 追踪）────────────────────────────────────────
-scripts/*
-!scripts/DESIGN.md
-!scripts/utils/
-
 Features
