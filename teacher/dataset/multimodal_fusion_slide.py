@@ -1,4 +1,4 @@
-"""Teacher dataset: multimodal slide fusion features."""
+"""Teacher dataset: multimodal fusion over slide-level feature bags."""
 
 from __future__ import annotations
 

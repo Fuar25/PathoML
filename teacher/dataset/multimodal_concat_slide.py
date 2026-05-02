@@ -1,4 +1,4 @@
-"""Teacher dataset: multimodal slide concat features."""
+"""Teacher dataset: multimodal concat over slide-level feature bags."""
 
 from __future__ import annotations
 

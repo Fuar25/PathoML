@@ -8,14 +8,15 @@ from teacher.experiments.common import (
   RunTimeConfig,
   SLIDE_FEAT_ROOT, LABELS_CSV,
   N_RUNS, K_FOLDS, EPOCHS, WD, DROPOUT_RATE, SLIDE_LR, PATIENCE,
-  OUTPUTS_DIR, BASE_SEED,
+  OUTPUTS_DIR,
   create_dataset_from_config, load_core_modules, load_teacher_modules,
 )
 
 DEVICE = "cuda:2"
 MLP_HIDDEN_DIM = 128
 STAINS = ["HE", "CD20", "CD3"]
-CONDITION_NAME = "run_concat_HE_CD20_CD3_mlp__bs32"
+CONDITION_NAME = "run_concat_HE_CD20_CD3_mlp_bs32"
+LEGACY_CONDITION_NAME = "run_concat_HE_CD20_CD3_mlp__bs32"
 
 
 def make_config(common_keys) -> RunTimeConfig:
@@ -38,17 +39,26 @@ def make_config(common_keys) -> RunTimeConfig:
   return config
 
 
+def resolve_condition_dir(output_dir: str) -> str:
+  primary_dir = os.path.join(output_dir, CONDITION_NAME)
+  legacy_dir = os.path.join(output_dir, LEGACY_CONDITION_NAME)
+  if os.path.isdir(primary_dir):
+    return primary_dir
+  if os.path.isdir(legacy_dir):
+    return legacy_dir
+  return primary_dir
+
+
 def analyze_hard_cases(output_dir: str, n_runs: int, common_keys):
   """从各 run 的 cv_predictions.csv 收集 patient-level 预测，统计疑难 case。"""
-  # (1) 收集所有 run 的 patient-level 预测
+  condition_dir = resolve_condition_dir(output_dir)
   run_dfs = []
   for i in range(n_runs):
-    csv_path = os.path.join(output_dir, CONDITION_NAME, f"run_{i:02d}", "cv_predictions.csv")
+    csv_path = os.path.join(condition_dir, f"run_{i:02d}", "cv_predictions.csv")
     if not os.path.exists(csv_path):
       print(f"WARNING: {csv_path} not found, skipping")
       continue
     df = pd.read_csv(csv_path)
-    # 去重到 patient 级别（CSV 中每个 patient 可能有多个 slide 行）
     patient_df = df.groupby("patient_id").first().reset_index()
     patient_df["run"] = i
     run_dfs.append(patient_df[["patient_id", "patient_label", "patient_prob", "patient_pred", "run"]])
@@ -59,7 +69,6 @@ def analyze_hard_cases(output_dir: str, n_runs: int, common_keys):
 
   all_preds = pd.concat(run_dfs, ignore_index=True)
 
-  # (2) 按 patient 聚合：统计被误判的次数
   patients = all_preds.groupby("patient_id").agg(
     true_label=("patient_label", "first"),
     mean_prob=("patient_prob", "mean"),
@@ -68,7 +77,6 @@ def analyze_hard_cases(output_dir: str, n_runs: int, common_keys):
     total_runs=("run", "count"),
   ).reset_index()
 
-  # (3) 添加每次 run 的概率
   for i in range(n_runs):
     run_data = all_preds[all_preds["run"] == i][["patient_id", "patient_prob"]]
     patients = patients.merge(
@@ -76,10 +84,8 @@ def analyze_hard_cases(output_dir: str, n_runs: int, common_keys):
       on="patient_id", how="left",
     )
 
-  # (4) 筛选疑难 case（至少 1 次被误判）
   hard = patients[patients["wrong_count"] >= 1].sort_values("wrong_count", ascending=False)
 
-  # (5) 添加 slide_ids 列
   cfg = make_config(common_keys)
   load_core_modules(cfg)
   load_teacher_modules()
@@ -93,11 +99,9 @@ def analyze_hard_cases(output_dir: str, n_runs: int, common_keys):
   slide_map = {pid: ";".join(sorted(sids)) for pid, sids in slide_map.items()}
   hard["slide_ids"] = hard["patient_id"].map(slide_map)
 
-  # (6) 标注真实标签和误判类型
   hard["true_label"] = hard["true_label"].map({0: "Reactive", 1: "MALT"})
   hard["predicted_as"] = hard["true_label"].map({"MALT": "Reactive", "Reactive": "MALT"})
 
-  # (7) 输出
   cols = ["patient_id", "slide_ids", "true_label", "predicted_as", "wrong_count",
           "mean_prob", "std_prob"] + [f"run{i}_prob" for i in range(n_runs)]
   hard = hard[cols]
@@ -125,7 +129,6 @@ def main():
   print(f"F1:  {ff.mean():.4f} ± {ff.std():.4f}")
   print(f"{'='*60}")
 
-  # 训练完成，分析疑难 case
   analyze_hard_cases(OUTPUTS_DIR, N_RUNS, common_keys)
 
 

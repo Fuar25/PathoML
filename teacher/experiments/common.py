@@ -3,6 +3,7 @@
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 
@@ -38,24 +39,33 @@ PATCH_FEAT_ROOT = f"{_FEAT_ROOT}/GigaPath-Patch-Feature"
 
 # ─── 超参数默认值 ─────────────────────────────────────────────────────────────
 
-N_RUNS         = 5
-K_FOLDS        = 5
+N_RUNS         = int(os.environ.get("PATHOML_N_RUNS", "5"))
+K_FOLDS        = int(os.environ.get("PATHOML_K_FOLDS", "5"))
 DEVICE         = "cuda:0"
 EPOCHS         = 100
 PATIENCE       = 30
 LR             = 1e-4
 WD             = 1e-5
-BASE_SEED      = 42
+BASE_SEED      = int(os.environ.get("PATHOML_BASE_SEED", "42"))
 MLP_HIDDEN_DIM     = 256
 DROPOUT_RATE       = 0.2
 BATCH_SIZE         = 16
 SLIDE_LR           = 4e-4
+FAST_PATCH_NUM_WORKERS = int(os.environ.get("PATHOML_DATALOADER_NUM_WORKERS", "0"))
+FAST_PATCH_PREFETCH_FACTOR = int(os.environ.get("PATHOML_PREFETCH_FACTOR", "2"))
 
 
 # ─── 路径配置 ─────────────────────────────────────────────────────────────────
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RUNS_ROOT = Path(
+  os.environ.get("PATHOML_RUNS_ROOT", str(PROJECT_ROOT.parent / "PathoML-runs"))
+)
+
 # 所有实验的 checkpoint 输出根目录（各条件在其下创建子目录）
-OUTPUTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs")
+OUTPUTS_DIR = str(
+  Path(os.environ.get("PATHOML_TEACHER_OUTPUTS_ROOT", str(RUNS_ROOT / "teacher")))
+)
 
 # 统一日志文件（所有实验追加写入同一个文件）
 SHARED_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results_log.txt")
@@ -66,6 +76,31 @@ SHARED_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resu
 def modality_names(stains: list[str]) -> list[str]:
   """透传染色名列表（保持接口对称，不做转换）。"""
   return list(stains)
+
+
+def env_bool(name: str, default: bool) -> bool:
+  raw = os.environ.get(name)
+  if raw is None:
+    return default
+  return raw.strip().lower() not in {'0', 'false', 'no', 'off'}
+
+
+def configure_fast_patch_training(config: RunTimeConfig) -> None:
+  """Enable DataLoader settings tuned for cached registered patch features."""
+  config.training.num_workers = FAST_PATCH_NUM_WORKERS
+  config.training.pin_memory = env_bool("PATHOML_PIN_MEMORY", True)
+  config.training.persistent_workers = (
+    config.training.num_workers > 0
+    and env_bool("PATHOML_PERSISTENT_WORKERS", True)
+  )
+  config.training.prefetch_factor = (
+    FAST_PATCH_PREFETCH_FACTOR if config.training.num_workers > 0 else None
+  )
+  config.training.non_blocking_device_transfer = env_bool(
+    "PATHOML_NON_BLOCKING_DEVICE_TRANSFER",
+    True,
+  )
+  config.training.bucket_by_length = env_bool("PATHOML_BUCKET_BY_LENGTH", True)
 
 
 def run_cv(config: RunTimeConfig, k_folds: int) -> tuple[list[float], list[float]]:
@@ -93,6 +128,7 @@ def run_condition(
   k_folds: int,
   output_dir: str,
   base_seed: int = BASE_SEED,
+  run_indices: list[int] | None = None,
 ) -> dict:
   """对一个条件运行 n_runs 次 CV，收集 AUC 和 F1 数据。
 
@@ -108,7 +144,9 @@ def run_condition(
   run_f1_means = []
   all_fold_f1s = []
 
-  for i in range(n_runs):
+  selected_run_indices = run_indices or _run_indices_from_env(n_runs)
+
+  for i in selected_run_indices:
     seed = base_seed + i
     run_dir = os.path.join(output_dir, condition_name, f"run_{i:02d}")
     os.makedirs(run_dir, exist_ok=True)
@@ -129,21 +167,54 @@ def run_condition(
 
     fold_str = "  ".join(f"fold{j+1}={v:.4f}" for j, v in enumerate(fold_aucs))
     print(f"  {fold_str}  →  mean={run_mean:.4f}")
+    _save_run_metrics(run_dir, i, seed, fold_aucs, fold_f1s)
 
   # (1) 训练完成后写入 manifest，供下游蒸馏脚本读取 teacher 配置
-  _save_manifest(
-    condition_dir=os.path.join(output_dir, condition_name),
-    condition_name=condition_name,
-    config=base_config,
-    n_runs=n_runs,
-    k_folds=k_folds,
-    base_seed=base_seed,
-  )
+  if not env_bool("PATHOML_SKIP_MANIFEST", False):
+    _save_manifest(
+      condition_dir=os.path.join(output_dir, condition_name),
+      condition_name=condition_name,
+      config=base_config,
+      n_runs=n_runs,
+      k_folds=k_folds,
+      base_seed=base_seed,
+    )
 
   return {
     "run_means": run_means, "all_fold_aucs": all_fold_aucs,
     "run_f1_means": run_f1_means, "all_fold_f1s": all_fold_f1s,
   }
+
+
+def _run_indices_from_env(n_runs: int) -> list[int]:
+  raw = os.environ.get("PATHOML_RUN_INDICES")
+  if not raw:
+    return list(range(n_runs))
+  run_indices = [int(part.strip()) for part in raw.split(',') if part.strip()]
+  invalid = [idx for idx in run_indices if idx < 0 or idx >= n_runs]
+  if invalid:
+    raise ValueError(f"Invalid PATHOML_RUN_INDICES values for n_runs={n_runs}: {invalid}")
+  return run_indices
+
+
+def _save_run_metrics(
+  run_dir: str,
+  run_index: int,
+  seed: int,
+  fold_aucs: list[float],
+  fold_f1s: list[float],
+) -> None:
+  payload = {
+    'run_index': run_index,
+    'seed': seed,
+    'fold_aucs': [float(v) for v in fold_aucs],
+    'fold_f1s': [float(v) for v in fold_f1s],
+    'run_auc_mean': float(np.mean(fold_aucs)),
+    'run_f1_mean': float(np.mean(fold_f1s)),
+  }
+  path = os.path.join(run_dir, 'run_metrics.json')
+  with open(path, 'w', encoding='utf-8') as f:
+    json.dump(payload, f, indent=2, ensure_ascii=False)
 
 
 def _save_manifest(
@@ -186,6 +257,24 @@ def _save_manifest(
   print(f"Teacher manifest 已写入: {manifest_path}")
 
 
+def save_manifest(
+  condition_name: str,
+  config: RunTimeConfig,
+  n_runs: int,
+  k_folds: int,
+  output_dir: str,
+  base_seed: int = BASE_SEED,
+) -> None:
+  _save_manifest(
+    condition_dir=os.path.join(output_dir, condition_name),
+    condition_name=condition_name,
+    config=config,
+    n_runs=n_runs,
+    k_folds=k_folds,
+    base_seed=base_seed,
+  )
+
+
 def _sample_set_fingerprint(config: RunTimeConfig) -> str:
   sample_keys = config.dataset.dataset_kwargs.get('allowed_sample_keys') or set()
   return fingerprint_sample_keys(set(sample_keys))
@@ -202,7 +291,8 @@ def log_results(
   stains: list[str] | None = None,
 ) -> None:
   """将各条件 AUC/F1 对比表以时间戳追加方式写入日志文件。"""
-  # (1) 格式化表格
+  if env_bool("PATHOML_SKIP_CONDITION_LOG", False):
+    return
   sep  = "=" * 100
   hsep = "─" * 100
   lines = [
@@ -210,22 +300,21 @@ def log_results(
     f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]  "
     f"条件: {', '.join(results.keys())}",
     hsep,
-    f"{'条件':<28}  {'run-level AUC (mean±std)':<28}  {'fold-level AUC (mean±std)':<28}  fold-level F1 (mean±std)",
+    f"{'run-level AUC (mean±std)':<28}  "
+    f"{'fold-level AUC (mean±std)':<28}  fold-level F1 (mean±std)",
     hsep,
   ]
-  for name, data in results.items():
+  for data in results.values():
     run_means = np.array(data["run_means"])
     fold_aucs = np.array(data["all_fold_aucs"])
     fold_f1s  = np.array(data.get("all_fold_f1s", []))
     f1_str = f"{fold_f1s.mean():.4f} ± {fold_f1s.std():.4f}" if len(fold_f1s) > 0 else "N/A"
     lines.append(
-      f"{name:<28}  "
       f"{run_means.mean():.4f} ± {run_means.std():.4f}              "
       f"{fold_aucs.mean():.4f} ± {fold_aucs.std():.4f}              "
       f"{f1_str}"
     )
 
-  # (2) 配置摘要（排除 path/name 类字段）
   lines.append(hsep)
   if stains:
     lines.append(f"样本交集: {' ∩ '.join(stains)}")
@@ -242,10 +331,18 @@ def log_results(
       lines.append(f"model={m.model_name}  {kw_str}")
     else:
       lines.append(f"model={m.model_name}")
+    loader_bits = [
+      f"num_workers={getattr(t, 'num_workers', 0)}",
+      f"pin_memory={getattr(t, 'pin_memory', False)}",
+      f"persistent_workers={getattr(t, 'persistent_workers', False)}",
+      f"prefetch_factor={getattr(t, 'prefetch_factor', None)}",
+      f"non_blocking={getattr(t, 'non_blocking_device_transfer', False)}",
+      f"bucket_by_length={getattr(t, 'bucket_by_length', False)}",
+    ]
+    lines.append("loader=" + "  ".join(loader_bits))
   lines.append(sep)
   lines.append("")
 
-  # (3) 打印到终端 + 追加写入日志文件
   print("\n" + "\n".join(lines))
   os.makedirs(os.path.dirname(log_path), exist_ok=True)
   with open(log_path, "a", encoding="utf-8") as f:
