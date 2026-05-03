@@ -31,6 +31,7 @@ Use `master` only to maintain this protocol and stable repo infrastructure.
 - `STATE.md`
   - Human and agent recovery entry point.
   - Holds only run-local mutable state: commits, current best, running candidate, next ideas, and recent summary.
+  - `Recent Summary` entries should start with a short UTC hour timestamp, for example `13:45`.
 - `results.tsv`
   - Pure completed-result table.
   - Header must be exactly:
@@ -61,9 +62,20 @@ The experiment branch history should contain only retained best-code states plus
   - `PATHOML_N_RUNS=3`
   - `PATHOML_K_FOLDS=5`
   - `PATHOML_BASE_SEED=42`
+  - `PATHOML_SKIP_CONDITION_LOG=1`
 - Primary score: mean fold-level patient F1.
 - AUC is recorded but does not block a higher-F1 best update.
 - A candidate becomes `best` when its F1 is strictly higher than the current best F1.
+
+## Log Policy
+- Autosearch screening must not modify `teacher/experiments/results_log.txt`.
+- Runner must set `PATHOML_SKIP_CONDITION_LOG=1` for every screening command.
+- Runner must redirect stdout and stderr to:
+  - `../PathoML-runs/teacher-autosearch/<tag>/logs/<candidate_id>.log`
+- Runner must read metrics from run artifacts such as `run_metrics.json`, manifests, and screening logs.
+- Coordinator must record completed screening results only in external `results.tsv`.
+- `teacher/experiments/results_log.txt` is reserved for formal experiment reporting outside the screening loop.
+- If `teacher/experiments/results_log.txt` is dirty before a candidate starts, stop and resolve it before launching screening.
 
 ## Default Training Settings
 - `lr=1e-4`
