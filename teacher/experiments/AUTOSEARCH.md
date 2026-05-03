@@ -84,7 +84,7 @@ The experiment branch history should contain only retained best-code states plus
 - `batch_size=16`
 - `epochs=100`
 - `patience=30`
-- `early_stopping_metric='patient_f1'`
+- `early_stopping_metric='auc'`
 - Dataset root: `/home/sbh/Features/GigaPath-Patch-Feature-RegCoordOrigFeat`
 - Stains: `HE`, `CD20`, `CD3`
 - Alignment: `union`
