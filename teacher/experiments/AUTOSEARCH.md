@@ -31,7 +31,8 @@ Use `master` only to maintain this protocol and stable repo infrastructure.
 - `STATE.md`
   - Human and agent recovery entry point.
   - Holds only run-local mutable state: commits, current best, running candidate, next ideas, and recent summary.
-  - `Recent Summary` entries should start with a short UTC hour timestamp, for example `13:45`.
+  - `Recent Summary` entries must start with a short UTC `HH:MM` timestamp, for example `13:45`.
+  - Use the hour timestamp instead of a full date for normal same-day autosearch notes.
 - `results.tsv`
   - Pure completed-result table.
   - Header must be exactly:
