@@ -88,7 +88,7 @@ Prioritize architecture changes over broad hyperparameter search.
 - The Coordinator owns decisions, state transitions, and git advancement.
 - The Coordinator must keep its own context small and durable.
 - The Coordinator must delegate implementation to a Worker subagent.
-- The Coordinator must delegate experiment watching to a Monitor subagent.
+- The Coordinator must delegate experiment execution and watching to a Runner subagent.
 - The Coordinator should receive compact summaries, not raw training logs or long diffs.
 - The Coordinator may inspect code or logs directly only when a subagent summary exposes a concrete blocker or inconsistency.
 
@@ -102,9 +102,9 @@ Prioritize architecture changes over broad hyperparameter search.
 6. Worker commits the candidate code.
 7. Worker reports changed files, commit hash, and validation results.
 8. Coordinator reviews the Worker summary and commit metadata.
-9. Coordinator launches screening on an idle GPU.
-10. Coordinator spawns one Monitor subagent to watch the experiment and summarize outputs.
-11. Monitor reports compact metrics, status, crash reason if any, and output paths.
+9. Coordinator selects the GPU and run command, then spawns one Runner subagent.
+10. Runner launches screening, watches the process, reads outputs, and summarizes results.
+11. Runner reports compact metrics, status, crash reason if any, and output paths.
 12. Coordinator appends one row to `results.tsv`.
 13. Coordinator updates `STATE.md`.
 14. Coordinator keeps the commit on `best`, or resets to `current_best_commit` on `discard`/`crash`.
@@ -113,8 +113,9 @@ Do not start a candidate unless this lifecycle can be followed.
 
 ## Subagent Rules
 - Coordinator must not implement candidate code directly.
+- Coordinator must not run screening commands directly.
 - Coordinator must not tail full training logs directly.
-- Coordinator may have at most one Worker and one Monitor active at a time.
+- Coordinator may have at most one Worker and one Runner active at a time.
 - Coordinator is the only agent that writes `STATE.md` and `results.tsv`.
 - Coordinator is the only agent that keeps or resets candidate commits.
 - Coordinator records decisions and compact summaries, not raw logs.
@@ -125,12 +126,14 @@ Do not start a candidate unless this lifecycle can be followed.
 - Worker must not promote a teacher winner.
 - Worker must not update `teacher/experiments/PLAN.md`.
 - Worker final response must list changed files, commit hash, and verification results.
-- Monitor handles one screening run at a time.
-- Monitor may read training logs, `run_metrics.json`, `cv_predictions.csv`, manifests, and output directories.
-- Monitor must not edit repository files.
-- Monitor must not write `STATE.md` or `results.tsv`.
-- Monitor must not keep or reset candidate commits.
-- Monitor final response must be compact: status, F1/AUC metrics, crash reason if any, and output paths.
+- Runner handles one screening run at a time.
+- Runner launches the screening command given by the Coordinator.
+- Runner watches the process until completion, failure, or explicit timeout.
+- Runner may read training logs, `run_metrics.json`, `cv_predictions.csv`, manifests, and output directories.
+- Runner must not edit repository files.
+- Runner must not write `STATE.md` or `results.tsv`.
+- Runner must not keep or reset candidate commits.
+- Runner final response must be compact: status, F1/AUC metrics, crash reason if any, and output paths.
 
 ## Documentation Rules
 - Do not update `teacher/experiments/PLAN.md` during screening.
