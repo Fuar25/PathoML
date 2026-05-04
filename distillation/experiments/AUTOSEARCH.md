@@ -2,6 +2,7 @@
 
 ## Purpose
 - Maximize distillation gain from the fixed teacher winner to an HE-only student.
+- The users may sleep during your work. When they wake up, they should see continuous progress toward better results. Never stop only if the users request it.
 - The primary score is `gain_f1_mean = distilled_f1_mean - baseline_f1_mean`.
 - Run distillation-algorithm-first 3-run / 5-fold screening continuously.
 - Make the loop recoverable from files on disk, not from chat context.
@@ -44,7 +45,6 @@ Use `master` only to maintain this protocol and stable repo infrastructure.
   - Allowed `status` values: `best`, `discard`, `crash`.
 
 Do not commit `STATE.md` or `results.tsv`.
-Do not use `queue.jsonl`.
 Do not duplicate candidate configuration details in `results.tsv`.
 Do not duplicate stable protocol rules in `STATE.md`.
 
