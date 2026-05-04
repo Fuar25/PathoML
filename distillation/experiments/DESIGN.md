@@ -20,7 +20,7 @@ This directory owns:
 - Machine IDs: lowercase snake case with full words; decimals use `p` instead of `.`.
 - Human-facing labels may use established abbreviations (for example TGA, KD, RKD).
 - Active `condition` names are derived from composed loss terms, not hidden family parameters.
-- Output layout: `../PathoML-runs/distillation/<condition>/run_{run:02d}/...`, autosearch outputs under `../PathoML-runs/distillation-autosearch/<tag>/`, shared logs (`results_log.txt`, `results_log_mil_abmil.txt`), and `PLAN.md`.
+- Output layout: human-run outputs under `../PathoML-runs/distillation/<condition>/run_{run:02d}/...`, autosearch logs and outputs under `../PathoML-runs/distillation-autosearch/<tag>/`, shared logs (`results_log.txt`, `results_log_mil_abmil.txt`), and `PLAN.md`.
 - Default teacher input is `../PathoML-runs/teacher-winners/manifest.json`; explicit manifest paths may override it.
 - Autosearch screening uses `distilled_f1_mean` as the primary metric.
 - Autosearch screening treats the `PLAN.md` ABMIL baseline as a reference anchor only.
@@ -46,12 +46,14 @@ This directory owns:
 ## Decided
 - Experiment tracking lives in `distillation/experiments/`.
 - `common.py` owns teacher manifest loading, dataset construction, run orchestration, and shared logging.
-- Heavy run outputs live outside the repository under `../PathoML-runs/distillation/`.
+- Human-run heavy outputs live outside the repository under `../PathoML-runs/distillation/`.
+- Autosearch heavy outputs must live under `../PathoML-runs/distillation-autosearch/<tag>/outputs/`.
 - Default runs consume the fixed current teacher winner, not arbitrary teacher tuning outputs.
 - `confirmation.py` owns confirmation-only student seed control while preserving teacher split seeds.
 - Legacy short aliases may exist in historical `results_log.txt`; do not reuse them for new experiments.
 - New active-line experiments append to `results_log_mil_abmil.txt` by default.
 - Autosearch screening sets `PATHOML_SKIP_CONDITION_LOG=1` and records completed results only in its external `results.tsv`.
+- Autosearch screening sets `PATHOML_DISTILLATION_OUTPUTS_ROOT` to its tag-local `outputs/<candidate_id>/` root.
 - Autosearch screening may restrict manifest runs with `PATHOML_RUN_INDICES`.
 - Autosearch screening runs only the candidate distilled condition, not a matched task-only baseline.
 - `teacher_guided_attention` remains the canonical family name for TGA variants.

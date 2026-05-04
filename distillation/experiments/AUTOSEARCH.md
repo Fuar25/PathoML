@@ -30,6 +30,7 @@ Use `master` only to maintain this protocol and stable repo infrastructure.
 - Create subdirectories:
   - `logs/`
   - `outputs/`
+- All autosearch runtime artifacts for the tag must stay under this run state root.
 - Initialize `STATE.md` and `results.tsv` in that run state root.
 - Set `start_commit` and `current_best_commit` in `STATE.md` to the experiment branch start commit.
 - Set `current_best_distilled_f1_mean` in `STATE.md` to `none`.
@@ -73,6 +74,8 @@ The experiment branch history should contain only retained best-code states plus
   - `PATHOML_TEACHER_MANIFEST=../PathoML-runs/teacher-winners/manifest.json`
   - `PATHOML_EXPERIMENT_SOURCE_ROOT=/home/sbh`
   - `PATHOML_DISTILLATION_OUTPUTS_ROOT=../PathoML-runs/distillation-autosearch/<tag>/outputs/<candidate_id>`
+- `PATHOML_DISTILLATION_OUTPUTS_ROOT` must always point under the tag-local autosearch `outputs/` directory.
+- Autosearch must not write screening outputs to `../PathoML-runs/distillation/`; that root is reserved for human-run distillation search.
 - Actual data roots are under `/home/sbh/Features/`:
   - `/home/sbh/Features/GigaPath-Patch-Feature`
   - `/home/sbh/Features/GigaPath-Slide-Feature`
@@ -125,6 +128,9 @@ Only tune training settings when required by the distillation algorithm, OOM, or
 - Runner must set `PATHOML_SKIP_CONDITION_LOG=1` for every screening command.
 - Runner must redirect stdout and stderr to:
   - `../PathoML-runs/distillation-autosearch/<tag>/logs/<candidate_id>.log`
+- Runner must keep run artifacts under:
+  - `../PathoML-runs/distillation-autosearch/<tag>/outputs/<candidate_id>/`
+- Runner must not let autosearch conditions fall back to the default `../PathoML-runs/distillation/` output root.
 - Runner must read metrics from run artifacts such as `run_metrics.json`, predictions, manifests, and screening logs.
 - Coordinator must record completed screening results only in external `results.tsv`.
 - Formal distillation logs and `PLAN.md` are reserved for human-requested reporting outside the screening loop.
