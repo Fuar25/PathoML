@@ -4,7 +4,7 @@
 
 ### Purpose
 - Maximize distilled fold-level F1 from the fixed teacher winner to an HE-only student.
-- The users may sleep during your work. When they wake up, they should see continuous progress toward better results. Never stop only if the users request it.
+- The users may sleep during your work. When they wake up, they should see continuous progress toward better results. Never stop unless the users request it.
 - The primary score is `distilled_f1_mean`.
 - Use the fixed ABMIL baseline from `distillation/experiments/PLAN.md` only as a reference anchor:
   - F1 `0.8343 +/- 0.0339`
@@ -46,6 +46,8 @@ Use `master` only to maintain this protocol and stable repo infrastructure.
   - Human and agent recovery entry point.
   - Derived runtime artifact; if missing, regenerate it from Game Setup.
   - Holds only run-local mutable state: commits, current best, `non_best_streak`, running candidate, idea pool, and recent summary.
+  - Must include an explicit `non_best_streak` field.
+  - `non_best_streak` counts completed `discard` or `crash` candidates since the latest `best` or Curator-reviewed window.
   - Must include an `Idea Pool` section with Explorer-generated compact idea cards.
   - `Recent Summary` entries must start with a short UTC `HH:MM` timestamp, for example `13:45`.
   - Use the hour timestamp instead of a full date for normal same-day autoresearch notes.
@@ -172,6 +174,8 @@ Only tune training settings when required by the distillation algorithm, OOM, or
 - Preconditions: no active Worker, no active Runner, no running candidate, latest result recorded in `results.tsv`, and latest candidate commit kept or reset.
 - Coordinator sends a compact packet: trigger IDs, current best, the 4 non-best failure-window rows, and active `unused`/`selected` idea cards.
 - Failure-window rows include only `candidate_id`, `status`, and F1/AUC if available.
+- After applying accepted Curator suggestions, Coordinator resets `non_best_streak` to `0` to mark that failure window as reviewed.
+- The reset is administrative only; it does not change `results.tsv`, best metrics, or candidate outcomes.
 - Active pool has a hard limit of 8 cards; if it already exceeds 8, Curator may receive all active cards once to recommend pruning back to 8.
 - Curator returns `Pool Verdict` (`candidate_stub | verdict | reason`) and `Shortlist` (1-3 next stubs).
 - Verdicts: `keep`, `stale`, `archive`.
