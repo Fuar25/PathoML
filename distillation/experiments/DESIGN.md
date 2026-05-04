@@ -12,7 +12,7 @@ This directory owns:
 
 ## 3. Public Contracts
 - Entry scripts import from `distillation.experiments.common`.
-- `AUTOSEARCH.md` defines the distillation autoresearch protocol for continuous gain screening.
+- `AUTOSEARCH.md` defines the distillation autoresearch protocol for continuous distilled-F1 screening.
 - Confirmation rerun scripts may import seed-control helpers from `distillation.experiments.confirmation`.
 - Script naming pattern: `run_<fully_descriptive_method_name>.py`.
 - Main rule: one script invocation logs exactly one condition result.
@@ -22,6 +22,9 @@ This directory owns:
 - Active `condition` names are derived from composed loss terms, not hidden family parameters.
 - Output layout: `../PathoML-runs/distillation/<condition>/run_{run:02d}/...`, autosearch outputs under `../PathoML-runs/distillation-autosearch/<tag>/`, shared logs (`results_log.txt`, `results_log_mil_abmil.txt`), and `PLAN.md`.
 - Default teacher input is `../PathoML-runs/teacher-winners/manifest.json`; explicit manifest paths may override it.
+- Autosearch screening uses `distilled_f1_mean` as the primary metric.
+- Autosearch screening treats the `PLAN.md` ABMIL baseline as a reference anchor only.
+- Autosearch screening must set `PATHOML_EXPERIMENT_SOURCE_ROOT=/home/sbh` so feature roots resolve to `/home/sbh/Features`.
 
 ## 4. Invariants
 - `PLAN.md` records only experiment status, results, and next steps.
@@ -50,6 +53,7 @@ This directory owns:
 - New active-line experiments append to `results_log_mil_abmil.txt` by default.
 - Autosearch screening sets `PATHOML_SKIP_CONDITION_LOG=1` and records completed results only in its external `results.tsv`.
 - Autosearch screening may restrict manifest runs with `PATHOML_RUN_INDICES`.
+- Autosearch screening runs only the candidate distilled condition, not a matched task-only baseline.
 - `teacher_guided_attention` remains the canonical family name for TGA variants.
 - `run_teacher_guided_attention.py` stays the historical no-detach cosine-logit TGA condition; new TGA variants use separate scripts.
 

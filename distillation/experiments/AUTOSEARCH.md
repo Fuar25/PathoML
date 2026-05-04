@@ -1,34 +1,38 @@
 # Distillation Autoresearch Protocol
 
 ## Purpose
-- Maximize distillation gain from the fixed teacher winner to an HE-only student.
+- Maximize distilled fold-level F1 from the fixed teacher winner to an HE-only student.
 - The users may sleep during your work. When they wake up, they should see continuous progress toward better results. Never stop only if the users request it.
-- The primary score is `gain_f1_mean = distilled_f1_mean - baseline_f1_mean`.
+- The primary score is `distilled_f1_mean`.
+- Use the fixed ABMIL baseline from `distillation/experiments/PLAN.md` only as a reference anchor:
+  - F1 `0.8343 +/- 0.0339`
+  - AUC `0.9110 +/- 0.0367`
 - Run distillation-algorithm-first 3-run / 5-fold screening continuously.
 - Make the loop recoverable from files on disk, not from chat context.
 - This protocol is repository infrastructure and belongs on `master`.
 
 ## Protocol Location
-- Active worktree for protocol maintenance: `/home/sbh/PathoML`
-- Protocol file: `/home/sbh/PathoML/distillation/experiments/AUTOSEARCH.md`
+- Active worktree for protocol maintenance: `/home/sbh/PathoML-master`
+- Protocol file: `/home/sbh/PathoML-master/distillation/experiments/AUTOSEARCH.md`
 - Protocol branch: `master`
 
 Do not run distillation autoresearch on `master`.
 Use `master` only to maintain this protocol and stable repo infrastructure.
 
 ## Game Setup
-- Pick a run tag before starting, for example `distill-gain-YYYYMMDD`.
+- Pick a run tag before starting, for example `distill-f1-YYYYMMDD`.
 - Create a fresh experiment branch from current `master`:
   - branch pattern: `exp/distillation-autosearch-<tag>`
-  - example: `exp/distillation-autosearch-distill-gain-20260504`
-- Use `/home/sbh/PathoML` as the single active worktree on that experiment branch.
+  - example: `exp/distillation-autosearch-distill-f1-20260504`
+- Use `/home/sbh/PathoML-master` as the single active worktree on that experiment branch.
 - Create the run state root:
   - `../PathoML-runs/distillation-autosearch/<tag>/`
 - Create subdirectories:
   - `logs/`
   - `outputs/`
 - Initialize `STATE.md` and `results.tsv` in that run state root.
-- Set both `start_commit` and `current_best_commit` in `STATE.md` to the experiment branch start commit.
+- Set `start_commit` and `current_best_commit` in `STATE.md` to the experiment branch start commit.
+- Set `current_best_distilled_f1_mean` in `STATE.md` to `none`.
 - After setup, `current_best_commit` is runtime state only; update it only when a candidate becomes `best`.
 
 ## Required State Files
@@ -41,7 +45,7 @@ Use `master` only to maintain this protocol and stable repo infrastructure.
 - `results.tsv`
   - Pure completed-result table.
   - Header must be exactly:
-    `candidate_id	commit	status	gain_f1_mean	gain_f1_std	baseline_f1_mean	baseline_f1_std	distilled_f1_mean	distilled_f1_std	baseline_auc_mean	baseline_auc_std	distilled_auc_mean	distilled_auc_std	run_indices	gpu	output_path`
+    `candidate_id	commit	status	distilled_f1_mean	distilled_f1_std	distilled_auc_mean	distilled_auc_std	run_indices	gpu	output_path`
   - Allowed `status` values: `best`, `discard`, `crash`.
 
 Do not commit `STATE.md` or `results.tsv`.
@@ -54,8 +58,8 @@ Do not duplicate stable protocol rules in `STATE.md`.
 - Do not change `current_best_commit` for protocol commits on `master`.
 - Each candidate starts from `current_best_commit`.
 - Each candidate code change is committed before screening.
-- If the candidate improves `gain_f1_mean`, keep the commit and update `current_best_commit`.
-- If the candidate does not improve `gain_f1_mean`, append `discard` to `results.tsv` and reset back to `current_best_commit`.
+- If the candidate improves `distilled_f1_mean`, keep the commit and update `current_best_commit` and `current_best_distilled_f1_mean`.
+- If the candidate does not improve `distilled_f1_mean`, append `discard` to `results.tsv` and reset back to `current_best_commit`.
 - If the candidate crashes, OOMs, or misses expected outputs, append `crash` to `results.tsv` and reset back to `current_best_commit`.
 - Never reset or rewrite `master`.
 - Before any candidate reset, verify the active branch starts with `exp/distillation-autosearch-`.
@@ -67,13 +71,23 @@ The experiment branch history should contain only retained best-code states plus
   - `PATHOML_RUN_INDICES=0,1,2`
   - `PATHOML_SKIP_CONDITION_LOG=1`
   - `PATHOML_TEACHER_MANIFEST=../PathoML-runs/teacher-winners/manifest.json`
+  - `PATHOML_EXPERIMENT_SOURCE_ROOT=/home/sbh`
   - `PATHOML_DISTILLATION_OUTPUTS_ROOT=../PathoML-runs/distillation-autosearch/<tag>/outputs/<candidate_id>`
-- Each candidate must run a matched pair:
-  - baseline: same final `StudentBasicABMIL` kwargs, task-only.
-  - distilled: same final `StudentBasicABMIL` kwargs, candidate distillation algorithm enabled.
-- Primary score: mean fold-level patient F1 gain between the matched pair.
-- AUC is recorded but does not block a higher-gain best update.
-- A candidate becomes `best` when its `gain_f1_mean` is strictly higher than the current best gain.
+- Actual data roots are under `/home/sbh/Features/`:
+  - `/home/sbh/Features/GigaPath-Patch-Feature`
+  - `/home/sbh/Features/GigaPath-Slide-Feature`
+  - `/home/sbh/Features/labels.csv`
+- Runner must preflight dataset construction before screening:
+  - teacher manifest fingerprint must match the distillation dataset intersection.
+  - expected shared sample count is `300`.
+  - an empty intersection usually means the worktree-local default `Features/` path was used by mistake.
+- Each candidate runs only the distilled condition:
+  - final evaluated student is `StudentBasicABMIL`.
+  - candidate distillation algorithm is enabled.
+- Primary score: mean fold-level patient F1 from the distilled condition.
+- AUC is recorded but does not block a higher-F1 best update.
+- A candidate becomes `best` when its `distilled_f1_mean` is strictly higher than the current best distilled F1.
+- Fixed ABMIL baseline metrics are a reference anchor only; do not run task-only baseline during autosearch screening.
 
 ## Search Surface
 - Fixed teacher input:
@@ -133,13 +147,13 @@ Only tune training settings when required by the distillation algorithm, OOM, or
 2. Coordinator optionally asks an Explorer for compact idea cards.
 3. Coordinator chooses one candidate and sets `STATE.md` running candidate.
 4. Coordinator spawns one Worker subagent with the candidate objective and file ownership.
-5. Worker implements one candidate in `/home/sbh/PathoML` on the autoresearch branch.
+5. Worker implements one candidate in `/home/sbh/PathoML-master` on the autoresearch branch.
 6. Worker runs import checks and focused tests.
 7. Worker commits the candidate code.
 8. Worker reports changed files, commit hash, and validation results.
 9. Coordinator reviews the Worker summary and commit metadata.
-10. Coordinator selects the GPU and matched-pair run command, then spawns one Runner subagent.
-11. Runner launches baseline and distilled screening, watches the process, reads outputs, and summarizes results.
+10. Coordinator selects the GPU and distilled run command, then spawns one Runner subagent.
+11. Runner launches distilled screening, watches the process, reads outputs, and summarizes results.
 12. Runner reports compact metrics, status, crash reason if any, and output paths.
 13. Coordinator appends one row to `results.tsv`.
 14. Coordinator updates `STATE.md`.
@@ -162,19 +176,19 @@ Do not start a candidate unless this lifecycle can be followed.
 - Explorer final response must be compact idea cards: algorithm name, source, core mechanism, BasicABMIL adaptation, expected gain source, implementation risk, and minimal validation.
 - Worker handles one candidate at a time.
 - Worker may edit losses, training flow, runner code, models, and tests for that candidate.
-- Worker must verify `/home/sbh/PathoML` is on an `exp/distillation-autosearch-*` branch.
+- Worker must verify `/home/sbh/PathoML-master` is on an `exp/distillation-autosearch-*` branch.
 - Worker must not work on `master`.
 - Worker must not promote a teacher or distillation winner.
 - Worker must not update `distillation/experiments/PLAN.md`.
 - Worker final response must list changed files, commit hash, and verification results.
-- Runner handles one matched-pair screening run at a time.
+- Runner handles one distilled screening run at a time.
 - Runner launches the screening commands given by the Coordinator.
 - Runner watches the process until completion, failure, or explicit timeout.
 - Runner may read training logs, `run_metrics.json`, predictions, manifests, and output directories.
 - Runner must not edit repository files.
 - Runner must not write `STATE.md` or `results.tsv`.
 - Runner must not keep or reset candidate commits.
-- Runner final response must be compact: status, gain F1, baseline/distilled F1/AUC, crash reason if any, and output paths.
+- Runner final response must be compact: status, distilled F1/AUC, crash reason if any, and output paths.
 
 ## Documentation Rules
 - Do not update `distillation/experiments/PLAN.md` during screening.
@@ -186,4 +200,4 @@ Do not start a candidate unless this lifecycle can be followed.
 - New models or final-student kwargs paths need forward-shape tests.
 - New runners need import checks.
 - Each candidate commit must pass targeted validation before screening.
-- The first real candidate must confirm matched task-only baseline, distilled run, `run_metrics.json`, `results.tsv`, external logs, output dirs, and `STATE.md` behavior before the loop continues.
+- The first real candidate must confirm feature-root preflight, distilled run, `run_metrics.json`, `results.tsv`, external logs, output dirs, and `STATE.md` behavior before the loop continues.
