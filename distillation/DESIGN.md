@@ -22,6 +22,7 @@ This subsystem does not own:
 - `distillation.runtime.TeacherManifest`
 - `distillation.losses.DistillationLoss`
 - `distillation.runtime.DistillCrossValidator`
+- Distillation dataset items include `sample_index` so runtime caches can align batches with dataset-level teacher outputs.
 
 Teacher artifacts are consumed through:
 - `manifest.json`
@@ -31,6 +32,7 @@ Teacher artifacts are consumed through:
 - Consume teacher artifacts, not teacher experiment internals.
 - Reuse shared `CrossValidator` rather than a separate full runtime.
 - Verify fold splits before trusting teacher checkpoints.
+- In-process feature and teacher-output caches must preserve cached/uncached training semantics.
 
 ## 5. Change Rules
 - Keep shared logic in `PathoML` unless it is distillation-specific.

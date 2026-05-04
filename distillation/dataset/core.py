@@ -64,6 +64,7 @@ class DistillationDataset(BaseDataset):
     patch_stain: str = 'HE',
     patient_id_pattern: str = PATIENT_ID_PATTERN,
     allowed_sample_keys: Optional[set] = None,
+    cache_features: bool = True,
   ) -> None:
     super().__init__()
     if not slide_stains:
@@ -71,6 +72,8 @@ class DistillationDataset(BaseDataset):
     self.patient_id_pattern = patient_id_pattern
     self.slide_stains = slide_stains
     self.patch_stain = patch_stain
+    self.cache_features = bool(cache_features)
+    self._feature_cache: List[dict] = []
     label_map = load_labels_csv(labels_csv)
 
     if allowed_sample_keys is not None:
@@ -126,25 +129,45 @@ class DistillationDataset(BaseDataset):
         'slide_paths': slide_paths,
       })
 
+    if self.cache_features:
+      self._feature_cache = [self._load_sample_tensors(sample) for sample in self.samples]
+
   def __len__(self) -> int:
     return len(self.samples)
 
   def __getitem__(self, idx: int) -> dict:
     sample = self.samples[idx]
+    tensors = self._feature_cache[idx] if self.cache_features else self._load_sample_tensors(sample)
+    return {
+      'he_patches': tensors['he_patches'],
+      'slide_concat': tensors['slide_concat'],
+      'label': torch.tensor(sample['label'], dtype=torch.float32),
+      'patient_id': sample['patient_id'],
+      'tissue_id': sample['tissue_id'],
+      'slide_id': sample['slide_id'],
+      'sample_index': torch.tensor(idx, dtype=torch.long),
+    }
+
+  def _load_sample_tensors(self, sample: dict) -> dict:
     he_patches = _load_h5_features(sample['patch_path'])
     slide_tensors = [
       _load_h5_features(sample['slide_paths'][stain]).view(-1)
       for stain in self.slide_stains
     ]
-    slide_concat = torch.cat(slide_tensors, dim=0)
     return {
       'he_patches': he_patches,
-      'slide_concat': slide_concat,
-      'label': torch.tensor(sample['label'], dtype=torch.float32),
-      'patient_id': sample['patient_id'],
-      'tissue_id': sample['tissue_id'],
-      'slide_id': sample['slide_id'],
+      'slide_concat': torch.cat(slide_tensors, dim=0),
     }
+
+  def get_slide_concat(self, idx: int) -> torch.Tensor:
+    if self.cache_features:
+      return self._feature_cache[idx]['slide_concat']
+    return self._load_sample_tensors(self.samples[idx])['slide_concat']
+
+  def get_item_length(self, idx: int) -> int:
+    if self.cache_features:
+      return int(self._feature_cache[idx]['he_patches'].shape[0])
+    return int(_load_h5_features(self.samples[idx]['patch_path']).shape[0])
 
   def get_patient_ids(self) -> List[str]:
     return [sample['patient_id'] for sample in self.samples]

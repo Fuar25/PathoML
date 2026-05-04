@@ -23,6 +23,7 @@ This package owns:
 - Keep shared training code aligned with dataset/model contracts in `PathoML.interfaces`.
 - Allow strategy-owned checkpoint metadata extensions.
 - Keep DataLoader performance options opt-in through config so existing experiments remain comparable by default.
+- `model_inputs` may exclude runtime-only batch metadata such as sample indices and cached teacher tensors.
 
 ## 5. Change Rules
 - Keep this runtime generic across teacher and distillation.

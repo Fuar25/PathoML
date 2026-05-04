@@ -15,12 +15,13 @@ This package does not own:
 
 ## 3. Public Contracts
 - `DistillationDataset(patch_root, slide_root, slide_stains, labels_csv, ...)`
-- Dataset item fields: `he_patches`, `slide_concat`, `label`, `patient_id`, `tissue_id`, `slide_id`
+- Dataset item fields: `he_patches`, `slide_concat`, `label`, `patient_id`, `tissue_id`, `slide_id`, `sample_index`
 
 ## 4. Invariants
 - `slide_concat` follows `slide_stains` order.
 - Sample ordering stays stable via sorted sample keys.
 - Shared scanning logic comes from `PathoML.dataset.utils`.
+- Cached and uncached feature modes must return equivalent item tensors.
 
 ## 5. Change Rules
 - Keep only distillation-specific assembly logic here.
@@ -28,6 +29,7 @@ This package does not own:
 
 ## Decided
 - Distillation keeps its own dataset package because this assembly is not shared with teacher.
+- `DistillationDataset` caches HE patch tensors and slide-concat tensors in process by default.
 
 ## TODO
 1. Split more helpers only if this package grows beyond one cohesive assembly unit.

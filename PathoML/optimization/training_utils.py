@@ -307,7 +307,17 @@ def move_to_device(
   return out
 
 
-_MODEL_INPUT_EXCLUDE = {'label', 'slide_id', 'patient_id', 'feature_path', 'tissue_id', 'modalities'}
+_MODEL_INPUT_EXCLUDE = {
+  'label',
+  'slide_id',
+  'patient_id',
+  'feature_path',
+  'tissue_id',
+  'modalities',
+  'sample_index',
+  'teacher_hidden',
+  'teacher_logit',
+}
 
 def model_inputs(batch: Dict[str, Any]) -> Dict[str, Any]:
   """Strip non-model keys from batch dict (labels, IDs, paths)."""

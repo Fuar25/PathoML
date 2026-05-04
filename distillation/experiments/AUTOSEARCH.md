@@ -74,6 +74,10 @@ The experiment branch history should contain only retained best-code states plus
   - `PATHOML_TEACHER_MANIFEST=../PathoML-runs/teacher-winners/manifest.json`
   - `PATHOML_EXPERIMENT_SOURCE_ROOT=/home/sbh`
   - `PATHOML_DISTILLATION_OUTPUTS_ROOT=../PathoML-runs/distillation-autosearch/<tag>/outputs/<candidate_id>`
+- Distillation feature and teacher-output caches are on by default; diagnostics may set:
+  - `PATHOML_DISTILLATION_CACHE_FEATURES=0`
+  - `PATHOML_DISTILLATION_CACHE_TEACHER_OUTPUTS=0`
+  - `PATHOML_TEACHER_OUTPUT_CACHE_BATCH_SIZE=<n>`
 - `PATHOML_DISTILLATION_OUTPUTS_ROOT` must always point under the tag-local autosearch `outputs/` directory.
 - Autosearch must not write screening outputs to `../PathoML-runs/distillation/`; that root is reserved for human-run distillation search.
 - Actual data roots are under `/home/sbh/Features/`:

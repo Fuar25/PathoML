@@ -206,14 +206,17 @@ def load_distill_dataset(
       f"manifest={manifest.sample_set_fingerprint}, distillation={common_fingerprint}"
     )
 
+  cache_features = env_bool('PATHOML_DISTILLATION_CACHE_FEATURES', True)
   dataset = DistillationDataset(
     patch_root=patch_root,
     slide_root=slide_root,
     slide_stains=list(manifest.modality_names),
     labels_csv=labels_csv,
     allowed_sample_keys=common_keys,
+    cache_features=cache_features,
   )
   print(f'  {len(dataset)} samples, classes: {dataset.classes}')
+  print(f'  cache_features={cache_features}')
   return dataset, intersection_stains
 
 
@@ -233,13 +236,17 @@ def run_distill_cv(
   """
   if student_builder is None:
     student_builder = lambda: StudentBasicABMIL(**student_kwargs)
+  cache_teacher_outputs = env_bool('PATHOML_DISTILLATION_CACHE_TEACHER_OUTPUTS', True)
+  teacher_cache_batch_size = int(os.environ.get('PATHOML_TEACHER_OUTPUT_CACHE_BATCH_SIZE', '64'))
   cv = DistillCrossValidator(
-    student_builder   = student_builder,
-    dataset           = dataset,
-    config            = config,
-    distill_loss      = distill_loss,
-    teacher_ckpt_tmpl = teacher_ckpt_tmpl,
-    k_folds           = k_folds,
+    student_builder                 = student_builder,
+    dataset                         = dataset,
+    config                          = config,
+    distill_loss                    = distill_loss,
+    teacher_ckpt_tmpl               = teacher_ckpt_tmpl,
+    k_folds                         = k_folds,
+    cache_teacher_outputs           = cache_teacher_outputs,
+    teacher_output_cache_batch_size = teacher_cache_batch_size,
   )
   result = Trainer(cv).fit()
   fold_aucs = [f.patient_auc for f in result.fold_results]

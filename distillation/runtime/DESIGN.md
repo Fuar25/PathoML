@@ -21,12 +21,14 @@ This package does not own:
 - `DistillCrossValidator(...)`
 - Default experiment helpers consume the fixed teacher winner manifest at `../PathoML-runs/teacher-winners/manifest.json`.
 - Teacher forward outputs consumed by losses: `hidden`, `logit`, and optional loss-specific fields such as `class_weight`
+- `DistillCrossValidator` may cache fold-local teacher outputs for `hidden` and `logit`.
 
 ## 4. Invariants
 - Reuse shared `PathoML` cross-validation runtime.
 - Verify teacher checkpoints against distillation fold splits before training.
 - Use teacher artifacts as the only formal teacher-to-distillation interface.
 - Keep the fixed winner path as a convenience default; runtime loading still accepts an explicit manifest path.
+- Cached teacher outputs must match frozen eval teacher forward results for the same fold and sample.
 
 ## 5. Change Rules
 - Keep subsystem-specific orchestration here, not in `PathoML`.
@@ -34,6 +36,7 @@ This package does not own:
 
 ## Decided
 - Keep `runtime` package-level because manifest handling and trainer adaptation share one boundary.
+- Cache teacher outputs in process by default after fold checkpoint verification.
 
 ## TODO
 1. Consider deeper runtime decomposition only if trainer and artifact handling diverge substantially.

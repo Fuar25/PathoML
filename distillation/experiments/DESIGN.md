@@ -25,6 +25,7 @@ This directory owns:
 - Autosearch screening uses `distilled_f1_mean` as the primary metric.
 - Autosearch screening treats the `PLAN.md` ABMIL baseline as a reference anchor only.
 - Autosearch screening must set `PATHOML_EXPERIMENT_SOURCE_ROOT=/home/sbh` so feature roots resolve to `/home/sbh/Features`.
+- Distillation feature and teacher-output caches are on by default; env vars may disable them for diagnostics.
 
 ## 4. Invariants
 - `PLAN.md` records only experiment status, results, and next steps.
@@ -56,6 +57,9 @@ This directory owns:
 - Autosearch screening sets `PATHOML_DISTILLATION_OUTPUTS_ROOT` to its tag-local `outputs/<candidate_id>/` root.
 - Autosearch screening may restrict manifest runs with `PATHOML_RUN_INDICES`.
 - Autosearch screening runs only the candidate distilled condition, not a matched task-only baseline.
+- `PATHOML_DISTILLATION_CACHE_FEATURES=0` disables feature caching.
+- `PATHOML_DISTILLATION_CACHE_TEACHER_OUTPUTS=0` disables teacher-output caching.
+- `PATHOML_TEACHER_OUTPUT_CACHE_BATCH_SIZE` controls teacher precompute batch size.
 - `teacher_guided_attention` remains the canonical family name for TGA variants.
 - `run_teacher_guided_attention.py` stays the historical no-detach cosine-logit TGA condition; new TGA variants use separate scripts.
 
