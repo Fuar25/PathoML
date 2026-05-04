@@ -1,5 +1,6 @@
 """Shared infrastructure for distillation experiments."""
 
+import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -79,6 +80,44 @@ SHARED_LOG_FILE = os.path.join(
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
+
+def env_bool(name: str, default: bool) -> bool:
+  raw = os.environ.get(name)
+  if raw is None:
+    return default
+  return raw.strip().lower() not in {'0', 'false', 'no', 'off'}
+
+
+def _run_indices_from_env(n_runs: int) -> list[int]:
+  raw = os.environ.get('PATHOML_RUN_INDICES')
+  if not raw:
+    return list(range(n_runs))
+  run_indices = [int(part.strip()) for part in raw.split(',') if part.strip()]
+  invalid = [idx for idx in run_indices if idx < 0 or idx >= n_runs]
+  if invalid:
+    raise ValueError(f'Invalid PATHOML_RUN_INDICES values for n_runs={n_runs}: {invalid}')
+  return run_indices
+
+
+def _save_run_metrics(
+  run_dir: str,
+  run_index: int,
+  seed: int,
+  fold_aucs: list[float],
+  fold_f1s: list[float],
+) -> None:
+  payload = {
+    'run_index': int(run_index),
+    'seed': int(seed),
+    'fold_aucs': [float(v) for v in fold_aucs],
+    'fold_f1s': [float(v) for v in fold_f1s],
+    'run_auc_mean': float(np.mean(fold_aucs)),
+    'run_f1_mean': float(np.mean(fold_f1s)),
+  }
+  path = os.path.join(run_dir, 'run_metrics.json')
+  with open(path, 'w', encoding='utf-8') as f:
+    json.dump(payload, f, indent=2, ensure_ascii=False)
+
 
 def format_condition_value(value: int | float | str) -> str:
   """Format a value for descriptive condition names.
@@ -231,7 +270,9 @@ def run_condition(
   run_means, all_fold_aucs = [], []
   run_f1_means, all_fold_f1s = [], []
 
-  for i in range(manifest.n_runs):
+  selected_run_indices = _run_indices_from_env(manifest.n_runs)
+
+  for i in selected_run_indices:
     seed = manifest.base_seed + i
     run_dir = os.path.join(output_dir, condition_name, f"run_{i:02d}")
     os.makedirs(run_dir, exist_ok=True)
@@ -256,10 +297,12 @@ def run_condition(
 
     fold_str = "  ".join(f"fold{j+1}={v:.4f}" for j, v in enumerate(fold_aucs))
     print(f"  {fold_str}  →  mean={run_mean:.4f}")
+    _save_run_metrics(run_dir, i, seed, fold_aucs, fold_f1s)
 
   return {
     "run_means": run_means, "all_fold_aucs": all_fold_aucs,
     "run_f1_means": run_f1_means, "all_fold_f1s": all_fold_f1s,
+    "run_indices": selected_run_indices,
   }
 
 
@@ -274,6 +317,8 @@ def log_results(
   stains: list[str] | None = None,
 ) -> None:
   """Append a timestamped AUC/F1 summary table to the shared experiment log."""
+  if env_bool('PATHOML_SKIP_CONDITION_LOG', False):
+    return
   sep  = "=" * 100
   hsep = "─" * 100
   lines = [
