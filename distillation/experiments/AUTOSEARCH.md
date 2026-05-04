@@ -40,7 +40,8 @@ Use `master` only to maintain this protocol and stable repo infrastructure.
 - `STATE.md`
   - Human and agent recovery entry point.
   - Derived runtime artifact; if missing, regenerate it from Game Setup.
-  - Holds only run-local mutable state: commits, current best, running candidate, next ideas, and recent summary.
+  - Holds only run-local mutable state: commits, current best, running candidate, idea pool, and recent summary.
+  - Must include an `Idea Pool` section with Explorer-generated compact idea cards.
   - `Recent Summary` entries must start with a short UTC `HH:MM` timestamp, for example `13:45`.
   - Use the hour timestamp instead of a full date for normal same-day autoresearch notes.
 - `results.tsv`
@@ -145,17 +146,44 @@ Only tune training settings when required by the distillation algorithm, OOM, or
 - The Coordinator plays the game by orchestration, not by personally doing every task.
 - The Coordinator owns decisions, state transitions, and git advancement.
 - The Coordinator must keep its own context small and durable.
-- The Coordinator may delegate idea discovery to an Explorer subagent.
+- The Coordinator must maintain an Explorer-generated idea pool.
+- The Coordinator should not start a new mechanism family unless it came from an Explorer idea card or was explicitly requested by the user.
+- The Coordinator may skip a new Explorer call only when `STATE.md` already has enough fresh unused idea cards.
 - The Coordinator must delegate implementation to a Worker subagent.
 - The Coordinator must delegate experiment execution and watching to a Runner subagent.
 - The Coordinator should receive compact summaries, not raw papers, training logs, or long diffs.
 - The Coordinator may inspect code, logs, or paper snippets directly only when a subagent summary exposes a concrete blocker or inconsistency.
 
+## Idea Pool Rules
+- `STATE.md` must keep an `Idea Pool` section with 3-5 compact unused ideas when possible.
+- Each idea card should include:
+  - `candidate_stub`
+  - `algorithm_name`
+  - `source`
+  - `core_mechanism`
+  - `BasicABMIL adaptation`
+  - `exact_candidate_sketch`
+  - `expected_f1_gain_source`
+  - `implementation_risk`
+  - `minimal_validation`
+  - `why_different_from_tried_candidates`
+  - `status`
+- Allowed idea statuses: `unused`, `selected`, `discarded_by_coordinator`, `used_best`, `used_discard`, `used_crash`, `stale`.
+- Coordinator must refresh the idea pool with Explorer when:
+  - a run is newly initialized and no fresh ideas exist.
+  - fewer than 3 ideas have status `unused`.
+  - 2 consecutive candidates are `discard` or `crash`.
+  - 3 consecutive candidates fail to improve `current_best_distilled_f1_mean`.
+  - the next candidate would change search surface class, such as student kwargs, curriculum, online distillation, or multi-student training.
+  - the user asks to continue search and `STATE.md` has no fresh unused idea.
+- Coordinator records the selected idea id and selection reason in `STATE.md` before delegating to Worker.
+- Coordinator may reject an Explorer idea, but must mark it `discarded_by_coordinator` with a short reason.
+
 ## Candidate Lifecycle
 1. Coordinator reads `STATE.md`, `results.tsv`, this protocol, and `git status`.
    If `STATE.md` does not exist, stop and perform Game Setup first.
-2. Coordinator optionally asks an Explorer for compact idea cards.
-3. Coordinator chooses one candidate and sets `STATE.md` running candidate.
+2. Coordinator checks `STATE.md` `Idea Pool` and refreshes it with Explorer if any Idea Pool Rule triggers.
+3. Coordinator chooses one unused idea card, records the selection reason, and sets `STATE.md` running candidate.
 4. Coordinator spawns one Worker subagent with the candidate objective and file ownership.
 5. Worker implements one candidate in `/home/sbh/PathoML-master` on the autoresearch branch.
 6. Worker runs import checks and focused tests.
@@ -176,14 +204,15 @@ Do not start a candidate unless this lifecycle can be followed.
 - Coordinator must not run screening commands directly.
 - Coordinator must not tail full training logs directly.
 - Coordinator may have at most one Worker and one Runner active at a time.
-- Coordinator may call Explorer separately when the next idea pool is thin or repetitive.
+- Coordinator must call Explorer when the `Idea Pool Rules` require a refresh.
 - Coordinator is the only agent that writes `STATE.md` and `results.tsv`.
 - Coordinator is the only agent that keeps or resets candidate commits.
 - Coordinator records decisions and compact summaries, not raw logs or full paper notes.
 - Explorer only discovers ideas.
-- Explorer may read `/home/sbh/A Comprehensive Survey on Knowledge Distillation.pdf`, public papers, web sources, historical `PLAN.md`, prior `results.tsv`, and diagnostic reports.
+- Explorer may read `/home/sbh/A Comprehensive Survey on Knowledge Distillation.pdf`, public papers, web sources, historical `PLAN.md`, prior `results.tsv`, diagnostic reports, and code needed to assess implementation fit.
 - Explorer must not edit repository files, run experiments, write runtime state, or make git decisions.
-- Explorer final response must be compact idea cards: algorithm name, source, core mechanism, BasicABMIL adaptation, expected gain source, implementation risk, and minimal validation.
+- Explorer final response must be compact idea cards using the `Idea Pool Rules` fields.
+- Explorer should prioritize ideas that are meaningfully different from already tried candidates.
 - Worker handles one candidate at a time.
 - Worker may edit losses, training flow, runner code, models, and tests for that candidate.
 - Worker must verify `/home/sbh/PathoML-master` is on an `exp/distillation-autosearch-*` branch.

@@ -26,6 +26,7 @@ This directory owns:
 - Autosearch screening treats the `PLAN.md` ABMIL baseline as a reference anchor only.
 - Autosearch screening must set `PATHOML_EXPERIMENT_SOURCE_ROOT=/home/sbh` so feature roots resolve to `/home/sbh/Features`.
 - Distillation feature and teacher-output caches are on by default; env vars may disable them for diagnostics.
+- Autosearch coordination maintains an Explorer-generated idea pool before launching candidates.
 
 ## 4. Invariants
 - `PLAN.md` records only experiment status, results, and next steps.
@@ -57,6 +58,7 @@ This directory owns:
 - Autosearch screening sets `PATHOML_DISTILLATION_OUTPUTS_ROOT` to its tag-local `outputs/<candidate_id>/` root.
 - Autosearch screening may restrict manifest runs with `PATHOML_RUN_INDICES`.
 - Autosearch screening runs only the candidate distilled condition, not a matched task-only baseline.
+- Autosearch candidates should be selected from fresh Explorer idea cards unless explicitly requested by the user.
 - `PATHOML_DISTILLATION_CACHE_FEATURES=0` disables feature caching.
 - `PATHOML_DISTILLATION_CACHE_TEACHER_OUTPUTS=0` disables teacher-output caching.
 - `PATHOML_TEACHER_OUTPUT_CACHE_BATCH_SIZE` controls teacher precompute batch size.
