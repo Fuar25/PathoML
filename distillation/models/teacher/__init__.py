@@ -1,3 +1,4 @@
 from .teacher_mlp import TeacherMLP
+from .generic import RegistryTeacher
 
-__all__ = ['TeacherMLP']
+__all__ = ['TeacherMLP', 'RegistryTeacher']

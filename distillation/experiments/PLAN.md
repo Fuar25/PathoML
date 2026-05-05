@@ -1,17 +1,21 @@
 # distillation/experiments/PLAN
 
 ## Current Goal
-- Fix platform: three-stain teacher + HE-only `StudentBasicABMIL`.
-- Close the ABMIL-line loss search and explain the RKD gain mechanism.
+- Rebase distillation onto the current RegCoord patch teacher winner + HE-only `StudentBasicABMIL`.
+- Re-establish the ABMIL-line loss baseline under the new teacher before comparing against old-platform results.
 
 ## Active Platform
-- Teacher: `run_concat_HE_CD20_CD3_mlp_bs32`
-- Teacher performance (fold-level): AUC `0.9532 +/- 0.0216`, F1Score `0.8808 +/- 0.0525` (teacher log 04-11)
+- Teacher: `run_regcoord_origfeat_HE_CD20_CD3_patch_c094_polycoord_stain_bias_coord_gate_scale020_thresh05125_mil`
+- Teacher performance (fold-level): AUC `0.9418 +/- 0.0358`, F1Score `0.8922 +/- 0.0404` (teacher autosearch 3-run screen)
+- Teacher artifact: `../PathoML-runs/teacher-winners/manifest.json`
+- Teacher sample set: RegCoord patch HE/CD20/CD3, 264 samples, `N_RUNS=3`, `K_FOLDS=5`
 - Student: `StudentBasicABMIL(hidden_dim=128, attention_dim=128)`
-- Protocol: fold-level AUC and fold-level F1Score, `N_RUNS=5`, `K_FOLDS=5`
-- Scope: fix teacher and student; vary distillation losses only
+- Protocol: fold-level AUC and fold-level F1Score
+- Scope: fix teacher and student; vary distillation losses only after the new-platform baseline is established
 
 ## Active Results
+Historical results below are from the previous slide-level teacher platform. Treat them as reference only until rerun under the new RegCoord patch teacher.
+
 | Method | Loss Design | Fold-level AUC | Fold-level F1Score | Date |
 |--------|-------------|----------------|--------------------|------|
 | ABMIL baseline | L_task | 0.9110 +/- 0.0367 | 0.8343 +/- 0.0339 | 04-11 |
@@ -113,7 +117,9 @@
 - [x] Run final confirmation: RKD + TGA weight 0.5 with confirmation student seeds
 - [x] Generate distillation mechanism diagnostic report
 - [ ] Close TGA large-exploration track in writing
-- [ ] Define next RKD-focused diagnostic or ablation, if needed
+- [ ] Rerun ABMIL task-only baseline under the `c094` RegCoord patch teacher sample set
+- [ ] Rerun strongest previous distillation baseline under the `c094` RegCoord patch teacher sample set
+- [ ] Define next RKD-focused diagnostic or ablation after new-platform baseline results exist
 
 ## Active Decisions
 - 2026-04-09: Freeze multi-stain teacher for this phase
@@ -144,3 +150,4 @@
 - 2026-04-26: Final confirmation keeps RKD + TGA experimental; it improves F1 and paired flips but does not beat RKD on AUC.
 - 2026-04-26: Distillation mechanism diagnostic supports RKD as the main BasicABMIL distillation baseline; its clearest gain is FN reduction / recall behavior, not calibration.
 - 2026-05-02: New distillation runs consume the fixed teacher winner manifest at `../PathoML-runs/teacher-winners/manifest.json`; restore or regenerate the canonical `run_concat_HE_CD20_CD3_mlp_bs32` artifact before launching new runs.
+- 2026-05-05: Current fixed teacher winner is `c094` RegCoord patch PolyCoord stain-bias coordinate-gate MIL; old slide-teacher results are reference-only until rerun on the new 264-sample platform.

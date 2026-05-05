@@ -22,6 +22,8 @@ This package does not own:
 - Default experiment helpers consume the fixed teacher winner manifest at `../PathoML-runs/teacher-winners/manifest.json`.
 - Teacher forward outputs consumed by losses: `hidden`, `logit`, and optional loss-specific fields such as `class_weight`
 - `DistillCrossValidator` may cache fold-local teacher outputs for `hidden` and `logit`.
+- Registry-backed teacher adapters normalize `bag_embeddings`/`logits` to `hidden`/`logit`.
+- Registered patch teachers use teacher-owned patch datasets for teacher-output precompute; the student dataset remains HE-only.
 
 ## 4. Invariants
 - Reuse shared `PathoML` cross-validation runtime.
@@ -29,6 +31,7 @@ This package does not own:
 - Use teacher artifacts as the only formal teacher-to-distillation interface.
 - Keep the fixed winner path as a convenience default; runtime loading still accepts an explicit manifest path.
 - Cached teacher outputs must match frozen eval teacher forward results for the same fold and sample.
+- Registry-backed teachers require cached teacher outputs because their registered patch inputs are separate from student HE patch batches.
 
 ## 5. Change Rules
 - Keep subsystem-specific orchestration here, not in `PathoML`.

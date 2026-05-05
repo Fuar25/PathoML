@@ -52,6 +52,7 @@ def test_run_condition_honors_run_indices_and_writes_metrics(monkeypatch, tmp_pa
     k_folds,
     student_kwargs,
     student_builder,
+    teacher_manifest=None,
   ):
     run_offset = config.training.seed - 100
     assert teacher_ckpt_tmpl == f'run_{run_offset:02d}/model_fold_{{fold}}_best.pth'

@@ -194,11 +194,25 @@ def load_distill_dataset(
   if intersection_stains is None:
     intersection_stains = list(manifest.modality_names)
 
-  # Patch features are HE-only. Slide features follow the manifest modalities.
   patch_keys = find_common_sample_keys(patch_root, ['HE'])
-  slide_keys = find_common_sample_keys(slide_root, intersection_stains)
-  common_keys = patch_keys & slide_keys
-  print(f'  Shared sample count (HE patch ∩ slide({" ∩ ".join(intersection_stains)})): {len(common_keys)}')
+  use_registered_patch_teacher = str(manifest.model_name).startswith('registered_patch_')
+  if use_registered_patch_teacher:
+    teacher_keys = find_common_sample_keys(manifest.data_root, intersection_stains)
+    common_keys = patch_keys & teacher_keys
+    teacher_input_root = None
+    print(
+      '  Shared sample count '
+      f'(HE patch ∩ teacher patch({" ∩ ".join(intersection_stains)})): {len(common_keys)}'
+    )
+  else:
+    teacher_keys = find_common_sample_keys(slide_root, intersection_stains)
+    common_keys = patch_keys & teacher_keys
+    teacher_input_root = slide_root
+    print(
+      '  Shared sample count '
+      f'(HE patch ∩ slide({" ∩ ".join(intersection_stains)})): {len(common_keys)}'
+    )
+
   common_fingerprint = fingerprint_sample_keys(common_keys)
   if manifest.sample_set_fingerprint and manifest.sample_set_fingerprint != common_fingerprint:
     raise ValueError(
@@ -209,8 +223,8 @@ def load_distill_dataset(
   cache_features = env_bool('PATHOML_DISTILLATION_CACHE_FEATURES', True)
   dataset = DistillationDataset(
     patch_root=patch_root,
-    slide_root=slide_root,
-    slide_stains=list(manifest.modality_names),
+    slide_root=teacher_input_root,
+    slide_stains=list(manifest.modality_names) if teacher_input_root else None,
     labels_csv=labels_csv,
     allowed_sample_keys=common_keys,
     cache_features=cache_features,
@@ -228,6 +242,7 @@ def run_distill_cv(
   k_folds: int,
   student_kwargs: dict = STUDENT_KWARGS,
   student_builder=None,
+  teacher_manifest=None,
 ) -> tuple[list[float], list[float]]:
   """Run one K-fold distillation CV pass and return `(fold_aucs, fold_f1s)`.
 
@@ -244,6 +259,7 @@ def run_distill_cv(
     config                          = config,
     distill_loss                    = distill_loss,
     teacher_ckpt_tmpl               = teacher_ckpt_tmpl,
+    teacher_manifest                = teacher_manifest,
     k_folds                         = k_folds,
     cache_teacher_outputs           = cache_teacher_outputs,
     teacher_output_cache_batch_size = teacher_cache_batch_size,
@@ -292,7 +308,7 @@ def run_condition(
 
     fold_aucs, fold_f1s = run_distill_cv(
       dataset, config, distill_loss, tmpl, manifest.k_folds,
-      student_kwargs, student_builder,
+      student_kwargs, student_builder, manifest,
     )
 
     run_mean = float(np.mean(fold_aucs))

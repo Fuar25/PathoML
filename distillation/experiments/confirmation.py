@@ -70,6 +70,7 @@ def run_seeded_student_condition(
       manifest.k_folds,
       student_kwargs,
       student_builder,
+      manifest,
     )
 
     run_mean = float(np.mean(fold_aucs))

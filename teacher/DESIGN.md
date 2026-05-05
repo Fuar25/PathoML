@@ -48,6 +48,7 @@ The teacher artifact contract includes:
 - Registered multimodal patch datasets align stains by shared coordinates before feature concatenation.
 - Registered multimodal patch datasets may cache aligned tensors in memory; cached and uncached modes must return equivalent item payloads.
 - Registered patch fusion models must preserve stain boundaries before any shared patch-level projection.
+- Coordinate-aware registered patch fusion models normalize coordinates per bag before MIL attention pooling.
 
 ## 5. Change Rules
 - Keep concrete teacher datasets/models here, not in `PathoML/`.

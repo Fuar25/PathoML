@@ -58,8 +58,8 @@ class DistillationDataset(BaseDataset):
   def __init__(
     self,
     patch_root: str,
-    slide_root: str,
-    slide_stains: List[str],
+    slide_root: Optional[str],
+    slide_stains: Optional[List[str]],
     labels_csv: str,
     patch_stain: str = 'HE',
     patient_id_pattern: str = PATIENT_ID_PATTERN,
@@ -67,12 +67,11 @@ class DistillationDataset(BaseDataset):
     cache_features: bool = True,
   ) -> None:
     super().__init__()
-    if not slide_stains:
-      raise ValueError("slide_stains cannot be empty.")
     self.patient_id_pattern = patient_id_pattern
-    self.slide_stains = slide_stains
+    self.slide_stains = list(slide_stains or [])
     self.patch_stain = patch_stain
     self.cache_features = bool(cache_features)
+    self.uses_slide_teacher_inputs = bool(slide_root and self.slide_stains)
     self._feature_cache: List[dict] = []
     label_map = load_labels_csv(labels_csv)
 
@@ -95,16 +94,18 @@ class DistillationDataset(BaseDataset):
       stain=patch_stain,
       allowed_keys=common_keys,
     )
-    slide_maps: Dict[str, Dict] = {
-      stain: _build_key_map(
-        slide_root,
-        patient_id_pattern,
-        label_map,
-        stain=stain,
-        allowed_keys=common_keys,
-      )
-      for stain in slide_stains
-    }
+    slide_maps: Dict[str, Dict] = {}
+    if self.uses_slide_teacher_inputs:
+      slide_maps = {
+        stain: _build_key_map(
+          str(slide_root),
+          patient_id_pattern,
+          label_map,
+          stain=stain,
+          allowed_keys=common_keys,
+        )
+        for stain in self.slide_stains
+      }
 
     all_classes = sorted(set(label_map.values()), reverse=True)
     self.classes = all_classes
@@ -116,11 +117,17 @@ class DistillationDataset(BaseDataset):
         continue
       patient_id, tissue_id = key
       class_name, patch_path = patch_map[key]
-      if any(key not in slide_maps[stain] for stain in self.slide_stains):
+      if self.uses_slide_teacher_inputs and any(
+        key not in slide_maps[stain] for stain in self.slide_stains
+      ):
         continue
-      slide_paths = {stain: slide_maps[stain][key][1] for stain in self.slide_stains}
+      slide_paths = {
+        stain: slide_maps[stain][key][1]
+        for stain in self.slide_stains
+      } if self.uses_slide_teacher_inputs else {}
       slide_id = os.path.splitext(os.path.basename(patch_path))[0]
       self.samples.append({
+        'sample_key': key,
         'patient_id': patient_id,
         'tissue_id': tissue_id,
         'slide_id': slide_id,
@@ -138,28 +145,34 @@ class DistillationDataset(BaseDataset):
   def __getitem__(self, idx: int) -> dict:
     sample = self.samples[idx]
     tensors = self._feature_cache[idx] if self.cache_features else self._load_sample_tensors(sample)
-    return {
+    item = {
       'he_patches': tensors['he_patches'],
-      'slide_concat': tensors['slide_concat'],
       'label': torch.tensor(sample['label'], dtype=torch.float32),
       'patient_id': sample['patient_id'],
       'tissue_id': sample['tissue_id'],
       'slide_id': sample['slide_id'],
       'sample_index': torch.tensor(idx, dtype=torch.long),
     }
+    if 'slide_concat' in tensors:
+      item['slide_concat'] = tensors['slide_concat']
+    return item
 
   def _load_sample_tensors(self, sample: dict) -> dict:
     he_patches = _load_h5_features(sample['patch_path'])
-    slide_tensors = [
-      _load_h5_features(sample['slide_paths'][stain]).view(-1)
-      for stain in self.slide_stains
-    ]
-    return {
+    tensors = {
       'he_patches': he_patches,
-      'slide_concat': torch.cat(slide_tensors, dim=0),
     }
+    if self.uses_slide_teacher_inputs:
+      slide_tensors = [
+        _load_h5_features(sample['slide_paths'][stain]).view(-1)
+        for stain in self.slide_stains
+      ]
+      tensors['slide_concat'] = torch.cat(slide_tensors, dim=0)
+    return tensors
 
   def get_slide_concat(self, idx: int) -> torch.Tensor:
+    if not self.uses_slide_teacher_inputs:
+      raise ValueError("This distillation dataset has no slide-level teacher inputs.")
     if self.cache_features:
       return self._feature_cache[idx]['slide_concat']
     return self._load_sample_tensors(self.samples[idx])['slide_concat']
@@ -174,3 +187,6 @@ class DistillationDataset(BaseDataset):
 
   def get_labels(self) -> List[int]:
     return [sample['label'] for sample in self.samples]
+
+  def get_sample_keys(self) -> List[Tuple[str, str]]:
+    return [sample['sample_key'] for sample in self.samples]

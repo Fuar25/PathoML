@@ -22,6 +22,7 @@ This directory owns:
 - Active `condition` names are derived from composed loss terms, not hidden family parameters.
 - Output layout: human-run outputs under `../PathoML-runs/distillation/<condition>/run_{run:02d}/...`, autosearch logs and outputs under `../PathoML-runs/distillation-autosearch/<tag>/`, shared logs (`results_log.txt`, `results_log_mil_abmil.txt`), and `PLAN.md`.
 - Default teacher input is `../PathoML-runs/teacher-winners/manifest.json`; explicit manifest paths may override it.
+- Default teacher input may be a slide-level MLP teacher or a registry-backed registered patch MIL teacher.
 - Autosearch screening uses `distilled_f1_mean` as the primary metric.
 - Autosearch screening treats the `PLAN.md` ABMIL baseline as a reference anchor only.
 - Autosearch screening must set `PATHOML_EXPERIMENT_SOURCE_ROOT=/home/sbh` so feature roots resolve to `/home/sbh/Features`.
@@ -51,6 +52,7 @@ This directory owns:
 - Human-run heavy outputs live outside the repository under `../PathoML-runs/distillation/`.
 - Autosearch heavy outputs must live under `../PathoML-runs/distillation-autosearch/<tag>/outputs/`.
 - Default runs consume the fixed current teacher winner, not arbitrary teacher tuning outputs.
+- Registered patch teacher winners use manifest sample fingerprints rather than hard-coded shared-sample counts.
 - `confirmation.py` owns confirmation-only student seed control while preserving teacher split seeds.
 - Legacy short aliases may exist in historical `results_log.txt`; do not reuse them for new experiments.
 - New active-line experiments append to `results_log_mil_abmil.txt` by default.

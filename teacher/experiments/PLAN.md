@@ -2,7 +2,8 @@
 
 ## Current Goal
 - Goal: diagnose why registration causes a teacher performance drop before returning to downstream distillation.
-- Current best: `concat_HE_CD20_CD3_mlp_bs32` (fold-level AUC 0.9532 +/- 0.0216, fold-level F1 0.8808 +/- 0.0525, hidden_dim=128, batch_size=32)
+- Current distillation-facing winner: `run_regcoord_origfeat_HE_CD20_CD3_patch_c094_polycoord_stain_bias_coord_gate_scale020_thresh05125_mil` (fold-level AUC 0.9418 +/- 0.0358, fold-level F1 0.8922 +/- 0.0404, 3-run screen)
+- Previous slide-level reference: `concat_HE_CD20_CD3_mlp_bs32` (fold-level AUC 0.9532 +/- 0.0216, fold-level F1 0.8808 +/- 0.0525, hidden_dim=128, batch_size=32)
 
 ## Results Summary
 
@@ -28,6 +29,7 @@
 |-----------|--------|-------|----------------|---------------|--------|
 | regcoord_origfeat_HE_CD20_CD3_patch_concat_abmil | HE+CD20+CD3 | ABMIL | 0.9216 +/- 0.0433 | 0.8327 +/- 0.0869 | done, refreshed 264 samples, union coords |
 | regcoord_origfeat_HE_CD20_CD3_patch_fusion_mil | HE+CD20+CD3 | RegisteredPatchFusionMIL | 0.9332 +/- 0.0446 | 0.8648 +/- 0.0636 | done, refreshed 264 samples, union coords |
+| **run_regcoord_origfeat_HE_CD20_CD3_patch_c094_polycoord_stain_bias_coord_gate_scale020_thresh05125_mil** | HE+CD20+CD3 | PolyCoordStainBiasCoordGateMIL | **0.9418 +/- 0.0358** | **0.8922 +/- 0.0404** | promoted teacher winner, 3-run screen |
 
 ## Matched Slide Track (Experimental)
 | Condition | Stains | Model | Fold-level AUC | Fold-level F1 | Status |
@@ -56,6 +58,7 @@
 - Registered patch fusion improves over patch concat but remains below matched original slide concat.
 - RegCoord original-feature patch concat matches registered patch concat, while RegCoord original-feature patch fusion improves over registered patch fusion.
 - RegCoord original-feature patch fusion remains below matched original slide concat in AUC, but slightly exceeds it in F1.
+- `c094` polycoord stain-bias coordinate-gate MIL is the current F1-selected teacher winner; it improves F1 over the slide-level reference but has lower AUC.
 - Feature-shift QC alone does not explain the registered drop: CD3 has high mean feature cosine (0.9908) despite the largest unimodal performance drop.
 - Prediction-shift QC shows the registered drop is concentrated in bad flips: CD3 slide linear has 15 bad flips vs 5 good flips; three-stain slide concat has 13 bad flips vs 2 good flips.
 
@@ -90,3 +93,4 @@
 - 2026-05-02: Keep RegCoord original-feature patch fusion as the stronger patch diagnostic, but do not replace the canonical slide-level teacher.
 - 2026-05-02: Move heavy teacher outputs outside the repository under `../PathoML-runs/teacher/`; keep only the current canonical teacher under `../PathoML-runs/teacher-winners/`.
 - 2026-05-02: Current canonical teacher remains `run_concat_HE_CD20_CD3_mlp_bs32`; its checkpoint artifact is not present in the cleaned local outputs and must be regenerated or restored before new distillation runs.
+- 2026-05-05: Promote `c094` RegCoord polycoord stain-bias coordinate-gate MIL to `../PathoML-runs/teacher-winners/` as the current F1-selected distillation-facing teacher.

@@ -6,7 +6,7 @@
 - Maximize distilled fold-level F1 from the fixed teacher winner to an HE-only student.
 - The users may sleep during your work. When they wake up, they should see continuous progress toward better results. Never stop unless the users request it.
 - The primary score is `distilled_f1_mean`.
-- Use the fixed ABMIL baseline from `distillation/experiments/PLAN.md` only as a reference anchor:
+- Use the fixed ABMIL baseline from `distillation/experiments/PLAN.md` only as an old-platform reference anchor until the new teacher platform is rerun:
   - F1 `0.8343 +/- 0.0339`
   - AUC `0.9110 +/- 0.0367`
 - Run distillation-algorithm-first 3-run / 5-fold screening continuously.
@@ -95,11 +95,13 @@ The experiment branch history should contain only retained best-code states plus
 - Autosearch must not write screening outputs to `../PathoML-runs/distillation/`; that root is reserved for human-run distillation search.
 - Actual data roots are under `/home/sbh/Features/`:
   - `/home/sbh/Features/GigaPath-Patch-Feature`
+  - `/home/sbh/Features/GigaPath-Patch-Feature-RegCoordOrigFeat`
   - `/home/sbh/Features/GigaPath-Slide-Feature`
   - `/home/sbh/Features/labels.csv`
 - Runner must preflight dataset construction before screening:
   - teacher manifest fingerprint must match the distillation dataset intersection.
-  - expected shared sample count is `300`.
+  - expected shared sample count comes from the fixed teacher winner manifest and `TEACHER.md`.
+  - current `c094` RegCoord patch teacher expected shared sample count is `264`.
 - Each candidate runs only the distilled condition:
   - final evaluated student is `StudentBasicABMIL`.
   - candidate distillation algorithm is enabled.
@@ -111,6 +113,7 @@ The experiment branch history should contain only retained best-code states plus
 ### Search Surface
 - Fixed teacher input:
   - `../PathoML-runs/teacher-winners/manifest.json`
+  - current winner: `run_regcoord_origfeat_HE_CD20_CD3_patch_c094_polycoord_stain_bias_coord_gate_scale020_thresh05125_mil`
 - Fixed final evaluated student class:
   - `StudentBasicABMIL`
 - Search may change:
