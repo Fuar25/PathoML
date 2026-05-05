@@ -13,6 +13,7 @@
 | unimodal_CD20_abmil | CD20 | ABMIL | 0.9294 +/- 0.0291 | 0.8482 +/- 0.0353 | 03-31 15:23 |
 | unimodal_HE_linear | HE | LinearProbe | 0.8975 +/- 0.0440 | 0.7976 +/- 0.0521 | 03-30 18:32 |
 | unimodal_CD20_linear | CD20 | LinearProbe | 0.9344 +/- 0.0345 | 0.8438 +/- 0.0601 | 03-30 18:51 |
+| unimodal_CD3_linear | CD3 | LinearProbe | 0.9264 +/- 0.0375 | 0.8698 +/- 0.0452 | 05-05 13:38 |
 | concat_HE_CD20_mlp | HE+CD20 | MLP | 0.9480 +/- 0.0220 | 0.8550 +/- 0.0555 | 03-30 19:13 |
 | concat_HE_CD20_CD3_mlp (dim=256) | HE+CD20+CD3 | MLP | 0.9512 +/- 0.0311 | 0.8499 +/- 0.0587 | 03-30 19:46 |
 | concat_HE_CD20_CD3_mlp (dim=128) | HE+CD20+CD3 | MLP | 0.9531 +/- 0.0233 | 0.8641 +/- 0.0435 | 03-31 11:03 |
@@ -49,7 +50,7 @@
 
 ## Key Findings
 - Three-stain concatenation beats unimodal baselines.
-- CD20-only experiments beat HE-only experiments.
+- CD20-only has the best unimodal LinearProbe AUC; CD3-only has the best unimodal LinearProbe F1.
 - `hidden_dim=128` is better and more stable than `hidden_dim=256`.
 - `batch_size=32` gives the best fold-level AUC in current three-stain MLP teachers.
 - `patience=30` remains the default patience.

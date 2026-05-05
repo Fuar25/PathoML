@@ -284,3 +284,17 @@ epochs=100  patience=30  lr=0.0001  wd=1e-05  batch_size=16  device=cuda:0
 model=registered_patch_fusion_mil  num_modalities=3  modality_hidden_dim=128  hidden_dim=256  dropout=0.2  modality_dropout=0.1
 ====================================================================================================
 
+====================================================================================================
+[2026-05-05 13:38:23]  条件: run_unimodal_CD3_linear
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9264 ± 0.0123              0.9264 ± 0.0375              0.8698 ± 0.0452
+────────────────────────────────────────────────────────────────────────────────────────────────────
+样本交集: HE ∩ CD20 ∩ CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=30  lr=0.0004  wd=1e-05  batch_size=16  device=cuda:0
+model=linear_probe
+loader=num_workers=0  pin_memory=False  persistent_workers=False  prefetch_factor=None  non_blocking=False  bucket_by_length=False
+====================================================================================================
+
