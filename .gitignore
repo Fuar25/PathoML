@@ -47,6 +47,7 @@ Thumbs.db
 .experiments/
 teacher/experiments/outputs/
 distillation/experiments/outputs/
+figure/out/
 
 # ─── CI / 版本控制平台配置 ────────────────────────────────────────────────────
 .github/

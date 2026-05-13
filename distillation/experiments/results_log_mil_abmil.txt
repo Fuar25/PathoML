@@ -527,3 +527,131 @@ loss_design: L_task + L_rkd_distance + 2*L_rkd_angle + 0.5*L_attn_cosine_no_deta
 student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
 ====================================================================================================
 
+====================================================================================================
+[2026-05-07 07:17:09]  conditions: task_only_baseline_task
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.8892 ± 0.0133              0.8892 ± 0.0517              0.8003 ± 0.0525
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_regcoord_origfeat_HE_CD20_CD3_patch_c094_polycoord_stain_bias_coord_gate_scale020_thresh05125_mil
+teacher_modalities: HE, CD20, CD3
+N_RUNS=3  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+
+====================================================================================================
+[2026-05-07 07:19:11]  conditions: standard_kd_task_soft_label_t4p0
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.8903 ± 0.0136              0.8903 ± 0.0525              0.8059 ± 0.0457
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_regcoord_origfeat_HE_CD20_CD3_patch_c094_polycoord_stain_bias_coord_gate_scale020_thresh05125_mil
+teacher_modalities: HE, CD20, CD3
+N_RUNS=3  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task + L_soft_label(T=4)
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+
+====================================================================================================
+[2026-05-07 07:21:23]  conditions: rkd_task_rkd_distance_rkd_angle_2p0
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9078 ± 0.0192              0.9078 ± 0.0597              0.8461 ± 0.0603
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_regcoord_origfeat_HE_CD20_CD3_patch_c094_polycoord_stain_bias_coord_gate_scale020_thresh05125_mil
+teacher_modalities: HE, CD20, CD3
+N_RUNS=3  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task + L_rkd_distance + 2*L_rkd_angle
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+
+====================================================================================================
+[2026-05-09 08:32:07]  conditions: task_only_baseline_task
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9105 ± 0.0116              0.9105 ± 0.0384              0.8344 ± 0.0354
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_concat_HE_CD20_CD3_mlp_bs32
+teacher_modalities: HE, CD20, CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+
+====================================================================================================
+[2026-05-09 08:33:44]  conditions: rkd_task_rkd_distance_rkd_angle_2p0
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9194 ± 0.0059              0.9194 ± 0.0332              0.8562 ± 0.0338
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_concat_HE_CD20_CD3_mlp_bs32
+teacher_modalities: HE, CD20, CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task + L_rkd_distance + 2*L_rkd_angle
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+
+====================================================================================================
+[2026-05-09 08:36:31]  conditions: standard_kd_task_soft_label_t4p0
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9179 ± 0.0095              0.9179 ± 0.0350              0.8460 ± 0.0476
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_concat_HE_CD20_CD3_mlp_bs32
+teacher_modalities: HE, CD20, CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task + L_soft_label(T=4)
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+
+====================================================================================================
+[2026-05-09 08:36:32]  conditions: decoupled_kd_task_dkd_t4p0_a1p0_b4p0
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9179 ± 0.0095              0.9179 ± 0.0350              0.8460 ± 0.0476
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_concat_HE_CD20_CD3_mlp_bs32
+teacher_modalities: HE, CD20, CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task + L_dkd(T=4, alpha=1, beta=4)
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+
+====================================================================================================
+[2026-05-09 08:36:33]  conditions: hidden_features_matching_task_hidden
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9160 ± 0.0117              0.9160 ± 0.0366              0.8338 ± 0.0483
+────────────────────────────────────────────────────────────────────────────────────────────────────
+shared sample intersection: HE ∩ CD20 ∩ CD3
+teacher: run_concat_HE_CD20_CD3_mlp_bs32
+teacher_modalities: HE, CD20, CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=10  lr=0.0001  wd=1e-05  batch_size=16  min_delta=0.002  device=cuda:0
+loss_design: L_task + L_hidden
+student: patch_dim=1536  hidden_dim=128  attention_dim=128  dropout=0.2
+====================================================================================================
+

@@ -298,3 +298,45 @@ model=linear_probe
 loader=num_workers=0  pin_memory=False  persistent_workers=False  prefetch_factor=None  non_blocking=False  bucket_by_length=False
 ====================================================================================================
 
+====================================================================================================
+[2026-05-09 07:07:23]  条件: run_concat_HE_CD20_CD3_mlp_bs32
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9533 ± 0.0026              0.9533 ± 0.0218              0.8821 ± 0.0542
+────────────────────────────────────────────────────────────────────────────────────────────────────
+样本交集: HE ∩ CD20 ∩ CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=30  lr=0.0004  wd=1e-05  batch_size=32  device=cuda:0
+model=mlp  hidden_dim=128  dropout=0.2
+loader=num_workers=0  pin_memory=False  persistent_workers=False  prefetch_factor=None  non_blocking=False  bucket_by_length=False
+====================================================================================================
+
+====================================================================================================
+[2026-05-10 12:43:54]  条件: run_matched_HE_CD20_CD3_slide_concat_mlp_bs32
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9440 ± 0.0052              0.9440 ± 0.0356              0.8628 ± 0.0651
+────────────────────────────────────────────────────────────────────────────────────────────────────
+样本交集: HE ∩ CD20 ∩ CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=30  lr=0.0004  wd=1e-05  batch_size=32  device=cuda:0
+model=mlp  hidden_dim=128  dropout=0.2
+loader=num_workers=0  pin_memory=False  persistent_workers=False  prefetch_factor=None  non_blocking=False  bucket_by_length=False
+====================================================================================================
+
+====================================================================================================
+[2026-05-10 12:48:44]  条件: run_regcoord_origfeat_HE_CD20_CD3_patch_concat_abmil
+────────────────────────────────────────────────────────────────────────────────────────────────────
+run-level AUC (mean±std)      fold-level AUC (mean±std)     fold-level F1 (mean±std)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+0.9224 ± 0.0121              0.9224 ± 0.0471              0.8186 ± 0.1189
+────────────────────────────────────────────────────────────────────────────────────────────────────
+样本交集: HE ∩ CD20 ∩ CD3
+N_RUNS=5  K_FOLDS=5  BASE_SEED=42
+epochs=100  patience=30  lr=0.0001  wd=1e-05  batch_size=16  device=cuda:0
+model=abmil  hidden_dim=256  dropout=0.2
+loader=num_workers=0  pin_memory=True  persistent_workers=False  prefetch_factor=None  non_blocking=True  bucket_by_length=True
+====================================================================================================
+
